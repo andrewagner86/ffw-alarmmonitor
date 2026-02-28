@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feuerwehr — Einsatzübersicht</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red: #E8180B; --bg: #0A0A0B; --surface: #111214; --surface2: #18191D;
+    --border: #2A2B30; --text: #F0F0F2; --muted: #7A7C85;
+    --green: #22C55E; --yellow: #EAB308;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Barlow', sans-serif; min-height: 100vh; }
+  body::before { content: ''; position: fixed; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.015) 2px, rgba(255,255,255,0.015) 4px); pointer-events: none; z-index: 999; }
+
+  header { display: flex; align-items: center; justify-content: space-between; padding: 0 2rem; height: 64px; background: var(--surface); border-bottom: 2px solid var(--red); position: sticky; top: 0; z-index: 100; }
+  .logo { display: flex; align-items: center; gap: 12px; font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 1.4rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .logo-icon { width: 36px; height: 36px; background: var(--red); border-radius: 4px; display: grid; place-items: center; font-size: 1.1rem; }
+  .hdr-right { display: flex; align-items: center; gap: 1rem; }
+  .refresh-indicator { font-size: 0.75rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .refresh-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: blink 1s infinite; }
+  @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
+  .hdr-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: transparent; transition: all 0.2s; text-decoration: none; }
+  .hdr-btn:hover { color: var(--text); border-color: #555; }
+
+  .page { max-width: 1000px; margin: 0 auto; padding: 2rem; }
+
+  .no-alarm { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 50vh; text-align: center; gap: 1rem; color: var(--muted); }
+  .no-alarm-icon { font-size: 4rem; opacity: 0.3; }
+  .no-alarm h2 { font-family: 'Barlow Condensed', sans-serif; font-size: 1.5rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  #alarm-info { margin-bottom: 2rem; }
+  .alarm-badge { display: inline-flex; align-items: center; gap: 8px; background: var(--red); color: white; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 5px 12px; border-radius: 3px; margin-bottom: 0.75rem; animation: pulse-badge 2s infinite; }
+  @keyframes pulse-badge { 0%,100%{opacity:1;} 50%{opacity:0.75;} }
+  .alarm-title { font-family: 'Barlow Condensed', sans-serif; font-size: 3rem; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1; margin-bottom: 0.3rem; }
+  .alarm-meta { color: var(--muted); font-size: 0.85rem; }
+
+  .gruppe-section { margin-bottom: 1.25rem; }
+  .gruppe-header { display: flex; align-items: center; gap: 10px; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+  .gruppe-label { font-family: 'Barlow Condensed', sans-serif; font-size: 1rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #FCD34D; }
+  .gruppe-count { font-size: 0.75rem; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); border-radius: 99px; padding: 2px 8px; }
+
+  .fahrzeug-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.65rem; }
+
+  .fahrzeug-card { background: var(--surface2); border-radius: 10px; padding: 1rem 1.1rem; position: relative; overflow: hidden; border: 2px solid; }
+  .fahrzeug-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+
+  .status-alarmiert { border-color: var(--green); }
+  .status-alarmiert::before { background: var(--green); }
+  .status-bereitschaft { border-color: var(--yellow); }
+  .status-bereitschaft::before { background: var(--yellow); }
+
+  .fahrzeug-name { font-family: 'Barlow Condensed', sans-serif; font-size: 1.3rem; font-weight: 700; margin-bottom: 0.15rem; }
+  .fahrzeug-meta { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.4rem; }
+  .fahrzeug-funkkennung { font-size: 0.75rem; color: #93C5FD; font-weight: 600; margin-bottom: 0.4rem; }
+  .status-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; }
+  .sl-alarmiert { color: var(--green); background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); }
+  .sl-bereitschaft { color: var(--yellow); background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.3); }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <div class="logo-icon">🔥</div>
+    Feuerwehr&nbsp;<span style="color:var(--red)">Einsatz</span>
+  </div>
+  <div class="hdr-right">
+    <div class="refresh-indicator">
+      <span class="refresh-dot"></span> Live · alle 5s
+    </div>
+    <a href="/" class="hdr-btn">← Alarmierung</a>
+  </div>
+</header>
+
+<div class="page">
+  <div id="content">
+    <div class="no-alarm">
+      <div class="no-alarm-icon">🚒</div>
+      <h2>Kein aktiver Alarm</h2>
+      <p>Sobald ein Alarm ausgelöst wird, erscheinen die Fahrzeuge hier.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const STATUS_LABEL = { alarmiert: 'Alarmiert', bereitschaft: 'Bereitschaft' };
+
+function render(data) {
+  const el = document.getElementById('content');
+  if (!data.alarm) {
+    el.innerHTML = `
+      <div class="no-alarm">
+        <div class="no-alarm-icon">🚒</div>
+        <h2>Kein aktiver Alarm</h2>
+        <p>Sobald ein Alarm ausgelöst wird, erscheinen die Fahrzeuge hier.</p>
+      </div>`;
+    return;
+  }
+
+  const { alarm, gruppen, gesamt } = data;
+  let html = `
+    <div id="alarm-info">
+      <div class="alarm-badge"><span style="width:6px;height:6px;border-radius:50%;background:white;display:inline-block;margin-right:4px"></span>Alarm aktiv</div>
+      <div class="alarm-title">${alarm.schlagwort || 'Alarm'}</div>
+      ${alarm.beschreibung ? `<div class="alarm-meta">${alarm.beschreibung}</div>` : ''}
+      <div class="alarm-meta" style="margin-top:4px">Alarmiert: ${alarm.erstellt_am || ''} · ${gesamt} Fahrzeug${gesamt !== 1 ? 'e' : ''}</div>
+    </div>`;
+
+  for (const gruppe of gruppen) {
+    const label = gruppe.gruppe || 'Ohne Gruppe';
+    const labelColor = gruppe.gruppe ? '#FCD34D' : 'var(--muted)';
+    html += `
+      <div class="gruppe-section">
+        <div class="gruppe-header">
+          <span class="gruppe-label" style="color:${labelColor}">📂 ${label}</span>
+          <span class="gruppe-count">${gruppe.fahrzeuge.length}</span>
+        </div>
+        <div class="fahrzeug-grid">`;
+    for (const f of gruppe.fahrzeuge) {
+      html += `
+          <div class="fahrzeug-card status-${f.status}">
+            <div class="fahrzeug-name">${f.name}</div>
+            ${f.kennzeichen ? `<div class="fahrzeug-meta">${f.kennzeichen}</div>` : ''}
+            ${f.funkkennung ? `<div class="fahrzeug-funkkennung">📻 ${f.funkkennung}</div>` : ''}
+            <span class="status-badge sl-${f.status}">${STATUS_LABEL[f.status] || f.status}</span>
+          </div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+async function refresh() {
+  try {
+    const res = await fetch('/api/einsatz');
+    render(await res.json());
+  } catch(e) { console.error('Refresh-Fehler:', e); }
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

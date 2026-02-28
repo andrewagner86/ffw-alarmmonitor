@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feuerwehr — Administration</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red: #E8180B; --red-dark: #A31008;
+    --bg: #0A0A0B; --surface: #111214; --surface2: #18191D;
+    --border: #2A2B30; --text: #F0F0F2; --muted: #7A7C85;
+    --green: #22C55E; --yellow: #EAB308;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Barlow', sans-serif; min-height: 100vh; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.012) 2px, rgba(255,255,255,0.012) 4px);
+    pointer-events: none; z-index: 999;
+  }
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem; height: 64px; background: var(--surface);
+    border-bottom: 2px solid var(--red); position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 1.4rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .logo-icon { width: 36px; height: 36px; background: var(--red); border-radius: 4px; display: grid; place-items: center; font-size: 1.1rem; }
+  .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+  .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; transition: color 0.2s; }
+  .nav-links a:hover { color: var(--text); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 2.5rem 2rem; }
+  .page-title { font-family: 'Barlow Condensed', sans-serif; font-size: 2rem; font-weight: 900; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.25rem; }
+  .page-subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 2rem; }
+  .tab-btn { padding: 0.6rem 1.25rem; background: transparent; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--muted); cursor: pointer; font-family: 'Barlow Condensed', sans-serif; font-size: 1rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; transition: all 0.15s; text-decoration: none; display: block; }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--red); }
+  .admin-grid { display: grid; grid-template-columns: 1fr 1.6fr; gap: 2rem; align-items: start; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; transition: border-color 0.2s; }
+  .card.editing { border-color: var(--red); }
+  .card-header { padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--border); font-family: 'Barlow Condensed', sans-serif; font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; display: flex; align-items: center; justify-content: space-between; }
+  .card-body { padding: 1.5rem; }
+  label { display: block; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.4rem; }
+  input[type="text"], select { font-family: 'Barlow', sans-serif; }
+  input[type="text"], select {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 7px; color: var(--text); padding: 0.6rem 0.9rem;
+    font-size: 0.9rem; transition: border-color 0.15s; margin-bottom: 1rem;
+  }
+  select option { background: var(--surface2); }
+  input[type="text"]:focus, select:focus { outline: none; border-color: var(--red); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+  .checkbox-group { display: flex; flex-direction: column; gap: 0.5rem; max-height: 200px; overflow-y: auto; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; padding: 0.75rem; margin-bottom: 1rem; }
+  .checkbox-item { display: flex; align-items: center; gap: 10px; padding: 0.4rem 0.5rem; border-radius: 5px; cursor: pointer; transition: background 0.1s; }
+  .checkbox-item:hover { background: rgba(255,255,255,0.05); }
+  .checkbox-item input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--red); cursor: pointer; }
+  .checkbox-item span { font-size: 0.88rem; font-weight: 500; }
+  .checkbox-item small { color: var(--muted); font-size: 0.75rem; margin-left: auto; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 0.6rem 1.25rem; border: none; border-radius: 7px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: all 0.15s; text-decoration: none; }
+  .btn-primary { background: var(--red); color: white; }
+  .btn-primary:hover { background: var(--red-dark); }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { color: var(--text); border-color: #555; }
+  .btn-danger { background: transparent; color: #FF6B60; border: 1px solid rgba(255,107,96,0.3); font-size: 0.8rem; padding: 0.35rem 0.75rem; }
+  .btn-danger:hover { background: rgba(232,24,11,0.1); }
+  .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
+  .form-actions { display: flex; gap: 8px; margin-top: 0.25rem; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  .data-table th { padding: 0.6rem 0.75rem; text-align: left; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); }
+  .data-table td { padding: 0.75rem; border-bottom: 1px solid rgba(42,43,48,0.6); vertical-align: middle; }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .data-table tr.active-row td { background: rgba(232,24,11,0.06); }
+  .tag-list { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tag { padding: 2px 8px; background: rgba(232,24,11,0.12); border: 1px solid rgba(232,24,11,0.25); border-radius: 4px; font-size: 0.72rem; font-weight: 600; color: #FF8A82; }
+  .tag-gruppe { padding: 2px 8px; background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.25); border-radius: 4px; font-size: 0.72rem; font-weight: 600; color: #FCD34D; }
+  .actions { display: flex; gap: 6px; }
+  .empty-state { padding: 2.5rem; text-align: center; color: var(--muted); font-size: 0.88rem; }
+  .move-btns { display: flex; flex-direction: column; gap: 2px; }
+  .btn-move {
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 4px; color: var(--muted); cursor: pointer;
+    font-size: 0.6rem; padding: 2px 5px; line-height: 1;
+    transition: all 0.15s;
+  }
+  .btn-move:hover:not(:disabled) { color: var(--text); border-color: #555; background: var(--surface2); }
+  .btn-move:disabled { opacity: 0.2; cursor: default; }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <div class="logo-icon">🔥</div>
+    Feuerwehr&nbsp;<span style="color:var(--red)">Admin</span>
+  </div>
+  <ul class="nav-links">
+    <li><a href="/">← Alarmansicht</a></li>
+  </ul>
+</header>
+
+<div class="page">
+  <div class="page-title">Administration</div>
+  <div class="page-subtitle">Fahrzeuge, Gruppen und Alarmierungsschlagworte verwalten</div>
+
+  <div class="tabs">
+    <a href="/admin"            class="tab-btn {% if tab == 'fahrzeuge' %}active{% endif %}">🚒 Fahrzeuge</a>
+    <a href="/admin/gruppen"    class="tab-btn {% if tab == 'gruppen'   %}active{% endif %}">📂 Gruppen</a>
+    <a href="/admin/schlagworte" class="tab-btn {% if tab == 'schlagworte' %}active{% endif %}">⚡ Schlagworte</a>
+  </div>
+
+
+  <!-- ══════════ TAB: FAHRZEUGE ══════════ -->
+  {% if tab == 'fahrzeuge' %}
+  <div class="admin-grid">
+
+    <div class="card" id="fahrzeug-form-card">
+      <div class="card-header">
+        <span id="fahrzeug-form-title">Fahrzeug anlegen</span>
+      </div>
+      <div class="card-body">
+        <form id="fahrzeug-form" method="post" action="/admin/fahrzeug/neu">
+          <div class="form-row">
+            <div>
+              <label>Fahrzeugname</label>
+              <input type="text" id="f-name" name="name" placeholder="z.B. HLF 20" required>
+            </div>
+            <div>
+              <label>Funkkennung</label>
+              <input type="text" id="f-funkkennung" name="funkkennung" placeholder="z.B. Florian 1-40-1">
+            </div>
+          </div>
+          <div class="form-row">
+            <div>
+              <label>Kennzeichen</label>
+              <input type="text" id="f-kennzeichen" name="kennzeichen" placeholder="z.B. KU-FL 12 (optional)">
+            </div>
+            <div>
+              <label>Fahrzeugtyp</label>
+              <input type="text" id="f-typ" name="typ" placeholder="z.B. Löschfahrzeug" required>
+            </div>
+          </div>
+          <label>Gruppe</label>
+          <select id="f-gruppe" name="gruppe_id">
+            <option value="">— Keine Gruppe —</option>
+            {% for g in gruppen %}
+            <option value="{{ g.id }}">{{ g.name }}</option>
+            {% endfor %}
+          </select>
+          <label>Ersatzfahrzeuge (bei Ausfall)</label>
+          <div class="checkbox-group" id="f-ersatzfahrzeuge">
+            {% for fz in fahrzeuge %}
+            <label class="checkbox-item">
+              <input type="checkbox" name="ersatz_ids" value="{{ fz.id }}" data-efid="{{ fz.id }}">
+              <span>{{ fz.name }}</span>
+            </label>
+            {% else %}
+            <div style="color:var(--muted);font-size:0.8rem;padding:0.5rem">Keine weiteren Fahrzeuge vorhanden</div>
+            {% endfor %}
+          </div>
+          <div class="form-actions">
+            <button type="submit" id="fahrzeug-submit-btn" class="btn btn-primary">+ Fahrzeug anlegen</button>
+            <button type="button" id="fahrzeug-abbrechen-btn" class="btn btn-ghost" style="display:none" onclick="fahrzeugAbbrechen()">✕ Abbrechen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Vorhandene Fahrzeuge ({{ fahrzeuge|length }})</div>
+      {% if fahrzeuge %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Fahrzeug</th>
+            <th>Gruppe</th>
+            <th>Ersatz</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in fahrzeuge %}
+          <tr id="row-f{{ f.id }}">
+            <td>
+              <strong>{{ f.name }}</strong><br>
+              <small style="color:var(--muted)">{{ f.kennzeichen }}{% if f.funkkennung %} · {{ f.funkkennung }}{% endif %}</small>
+            </td>
+            <td>
+              {% if f.gruppe %}<span class="tag-gruppe">{{ f.gruppe.name }}</span>
+              {% else %}<span style="color:var(--muted)">—</span>{% endif %}
+            </td>
+            <td>
+              {% if f.ersatzfahrzeuge %}
+                <div class="tag-list">{% for e in f.ersatzfahrzeuge %}<span class="tag" style="background:rgba(99,102,241,0.12);border-color:rgba(99,102,241,0.3);color:#A5B4FC">{{ e.name }}</span>{% endfor %}</div>
+              {% else %}<span style="color:var(--muted)">—</span>{% endif %}
+            </td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-ghost btn-sm bearbeiten-fahrzeug"
+                  data-id="{{ f.id }}"
+                  data-name="{{ f.name | e }}"
+                  data-kennzeichen="{{ f.kennzeichen | e }}"
+                  data-funkkennung="{{ (f.funkkennung or '') | e }}"
+                  data-typ="{{ f.typ | e }}"
+                  data-gruppe="{{ f.gruppe_id or '' }}"
+                  data-ersatz="{% for e in f.ersatzfahrzeuge %}{{ e.id }}{% if not loop.last %},{% endif %}{% endfor %}"
+                >Bearbeiten</button>
+                <form method="post" action="/admin/fahrzeug/{{ f.id }}/loeschen" onsubmit="return confirm('Fahrzeug löschen?')">
+                  <button type="submit" class="btn btn-danger">Löschen</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">Noch keine Fahrzeuge angelegt.</div>
+      {% endif %}
+    </div>
+
+  </div>
+  {% endif %}
+
+
+  <!-- ══════════ TAB: GRUPPEN ══════════ -->
+  {% if tab == 'gruppen' %}
+  <div class="admin-grid">
+
+    <div class="card" id="gruppe-form-card">
+      <div class="card-header">
+        <span id="gruppe-form-title">Gruppe anlegen</span>
+      </div>
+      <div class="card-body">
+        <form id="gruppe-form" method="post" action="/admin/gruppe/neu">
+          <label>Gruppenname</label>
+          <input type="text" id="g-name" name="name" placeholder="z.B. Löschzug, Hilfeleistung" required>
+          <div class="form-actions">
+            <button type="submit" id="gruppe-submit-btn" class="btn btn-primary">+ Gruppe anlegen</button>
+            <button type="button" id="gruppe-abbrechen-btn" class="btn btn-ghost" style="display:none" onclick="gruppeAbbrechen()">✕ Abbrechen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Vorhandene Gruppen ({{ gruppen|length }})</div>
+      {% if gruppen %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width:64px">Reihenfolge</th>
+            <th>Gruppe</th>
+            <th>Fahrzeuge</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for g in gruppen %}
+          <tr id="row-g{{ g.id }}">
+            <td>
+              <div class="move-btns">
+                <button class="btn-move" title="Nach oben" {% if not loop.first %}onclick="moveGruppe({{ g.id }}, 'up')"{% else %}disabled{% endif %}>▲</button>
+                <button class="btn-move" title="Nach unten" {% if not loop.last %}onclick="moveGruppe({{ g.id }}, 'down')"{% else %}disabled{% endif %}>▼</button>
+              </div>
+            </td>
+            <td><strong>{{ g.name }}</strong></td>
+            <td style="color:var(--muted)">{{ g.fahrzeuge|length }}</td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-ghost btn-sm bearbeiten-gruppe"
+                  data-id="{{ g.id }}"
+                  data-name="{{ g.name | e }}"
+                >Bearbeiten</button>
+                <form method="post" action="/admin/gruppe/{{ g.id }}/loeschen" onsubmit="return confirm('Gruppe löschen?')">
+                  <button type="submit" class="btn btn-danger">Löschen</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">Noch keine Gruppen angelegt.</div>
+      {% endif %}
+    </div>
+
+  </div>
+  {% endif %}
+
+
+  <!-- ══════════ TAB: SCHLAGWORTE ══════════ -->
+  {% if tab == 'schlagworte' %}
+  <div class="admin-grid">
+
+    <div class="card" id="sw-form-card">
+      <div class="card-header">
+        <span id="sw-form-title">Schlagwort anlegen</span>
+      </div>
+      <div class="card-body">
+        <form id="sw-form" method="post" action="/admin/schlagwort/neu">
+          <label>Schlagwort / Name</label>
+          <input type="text" id="sw-name" name="name" placeholder="z.B. BRAND Gebäude" required>
+          <label>Beschreibung (optional)</label>
+          <input type="text" id="sw-beschreibung" name="beschreibung" placeholder="z.B. B1 – Kleinbrand">
+          <label>Fahrzeuge zuordnen</label>
+          <div class="checkbox-group" id="sw-fahrzeuge">
+            {% for f in fahrzeuge %}
+            <label class="checkbox-item">
+              <input type="checkbox" name="fahrzeug_ids" value="{{ f.id }}" data-fid="{{ f.id }}">
+              <span>{{ f.name }}</span>
+            </label>
+            {% else %}
+            <div style="color:var(--muted);font-size:0.8rem;padding:0.5rem">Keine Fahrzeuge vorhanden</div>
+            {% endfor %}
+          </div>
+          <div class="form-actions">
+            <button type="submit" id="sw-submit-btn" class="btn btn-primary">+ Schlagwort anlegen</button>
+            <button type="button" id="sw-abbrechen-btn" class="btn btn-ghost" style="display:none" onclick="swAbbrechen()">✕ Abbrechen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Vorhandene Schlagworte ({{ schlagworte|length }})</div>
+      {% if schlagworte %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Schlagwort</th>
+            <th>Fahrzeuge</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sw in schlagworte %}
+          <tr id="row-s{{ sw.id }}">
+            <td>
+              <strong>{{ sw.name }}</strong>
+              {% if sw.beschreibung %}<br><small style="color:var(--muted)">{{ sw.beschreibung }}</small>{% endif %}
+            </td>
+            <td>
+              <div class="tag-list">
+                {% for f in sw.fahrzeuge %}<span class="tag">{{ f.name }}</span>
+                {% else %}<span style="color:var(--muted);font-size:0.8rem">—</span>{% endfor %}
+              </div>
+            </td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-ghost btn-sm bearbeiten-sw"
+                  data-id="{{ sw.id }}"
+                  data-name="{{ sw.name | e }}"
+                  data-beschreibung="{{ (sw.beschreibung or '') | e }}"
+                  data-fahrzeuge="{% for f in sw.fahrzeuge %}{{ f.id }}{% if not loop.last %},{% endif %}{% endfor %}"
+                >Bearbeiten</button>
+                <form method="post" action="/admin/schlagwort/{{ sw.id }}/loeschen" onsubmit="return confirm('Schlagwort löschen?')">
+                  <button type="submit" class="btn btn-danger">Löschen</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">Noch keine Schlagworte angelegt.</div>
+      {% endif %}
+    </div>
+
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+  // ── Fahrzeuge ──────────────────────────────────────────────────────────────
+  let aktiveFahrzeugRow = null;
+
+  document.querySelectorAll('.bearbeiten-fahrzeug').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const d = this.dataset;
+      document.getElementById('f-name').value = d.name;
+      document.getElementById('f-kennzeichen').value = d.kennzeichen;
+      document.getElementById('f-funkkennung').value = d.funkkennung;
+      document.getElementById('f-typ').value = d.typ;
+      document.getElementById('f-gruppe').value = d.gruppe || '';
+      const ersatzIds = d.ersatz ? d.ersatz.split(',').map(Number).filter(Boolean) : [];
+      document.querySelectorAll('#f-ersatzfahrzeuge input[type="checkbox"]').forEach(cb => {
+        cb.checked = ersatzIds.includes(parseInt(cb.dataset.efid));
+        // Eigenes Fahrzeug ausblenden
+        cb.closest('.checkbox-item').style.display =
+          parseInt(cb.dataset.efid) === parseInt(d.id) ? 'none' : '';
+      });
+
+      document.getElementById('fahrzeug-form').action = `/admin/fahrzeug/${d.id}/bearbeiten`;
+      document.getElementById('fahrzeug-form-title').textContent = 'Fahrzeug bearbeiten';
+      document.getElementById('fahrzeug-submit-btn').textContent = '✓ Speichern';
+      document.getElementById('fahrzeug-abbrechen-btn').style.display = 'inline-flex';
+      document.getElementById('fahrzeug-form-card').classList.add('editing');
+
+      if (aktiveFahrzeugRow) aktiveFahrzeugRow.classList.remove('active-row');
+      aktiveFahrzeugRow = document.getElementById(`row-f${d.id}`);
+      if (aktiveFahrzeugRow) aktiveFahrzeugRow.classList.add('active-row');
+      document.getElementById('fahrzeug-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  window.fahrzeugAbbrechen = function() {
+    document.getElementById('fahrzeug-form').reset();
+    document.querySelectorAll('#f-ersatzfahrzeuge .checkbox-item').forEach(item => item.style.display = '');
+    document.getElementById('fahrzeug-form').action = '/admin/fahrzeug/neu';
+    document.getElementById('fahrzeug-form-title').textContent = 'Fahrzeug anlegen';
+    document.getElementById('fahrzeug-submit-btn').textContent = '+ Fahrzeug anlegen';
+    document.getElementById('fahrzeug-abbrechen-btn').style.display = 'none';
+    document.getElementById('fahrzeug-form-card').classList.remove('editing');
+    if (aktiveFahrzeugRow) { aktiveFahrzeugRow.classList.remove('active-row'); aktiveFahrzeugRow = null; }
+  };
+
+  // ── Gruppen ────────────────────────────────────────────────────────────────
+  let aktiveGruppeRow = null;
+
+  document.querySelectorAll('.bearbeiten-gruppe').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const d = this.dataset;
+      document.getElementById('g-name').value = d.name;
+
+      document.getElementById('gruppe-form').action = `/admin/gruppe/${d.id}/bearbeiten`;
+      document.getElementById('gruppe-form-title').textContent = 'Gruppe bearbeiten';
+      document.getElementById('gruppe-submit-btn').textContent = '✓ Speichern';
+      document.getElementById('gruppe-abbrechen-btn').style.display = 'inline-flex';
+      document.getElementById('gruppe-form-card').classList.add('editing');
+
+      if (aktiveGruppeRow) aktiveGruppeRow.classList.remove('active-row');
+      aktiveGruppeRow = document.getElementById(`row-g${d.id}`);
+      if (aktiveGruppeRow) aktiveGruppeRow.classList.add('active-row');
+      document.getElementById('gruppe-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  window.gruppeAbbrechen = function() {
+    document.getElementById('gruppe-form').reset();
+    document.getElementById('gruppe-form').action = '/admin/gruppe/neu';
+    document.getElementById('gruppe-form-title').textContent = 'Gruppe anlegen';
+    document.getElementById('gruppe-submit-btn').textContent = '+ Gruppe anlegen';
+    document.getElementById('gruppe-abbrechen-btn').style.display = 'none';
+    document.getElementById('gruppe-form-card').classList.remove('editing');
+    if (aktiveGruppeRow) { aktiveGruppeRow.classList.remove('active-row'); aktiveGruppeRow = null; }
+  };
+
+  // ── Schlagworte ────────────────────────────────────────────────────────────
+  let aktiveSwRow = null;
+
+  document.querySelectorAll('.bearbeiten-sw').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const d = this.dataset;
+      const ids = d.fahrzeuge ? d.fahrzeuge.split(',').map(Number).filter(Boolean) : [];
+      document.getElementById('sw-name').value = d.name;
+      document.getElementById('sw-beschreibung').value = d.beschreibung;
+      document.querySelectorAll('#sw-fahrzeuge input[type="checkbox"]').forEach(cb => {
+        cb.checked = ids.includes(parseInt(cb.dataset.fid));
+      });
+
+      document.getElementById('sw-form').action = `/admin/schlagwort/${d.id}/bearbeiten`;
+      document.getElementById('sw-form-title').textContent = 'Schlagwort bearbeiten';
+      document.getElementById('sw-submit-btn').textContent = '✓ Speichern';
+      document.getElementById('sw-abbrechen-btn').style.display = 'inline-flex';
+      document.getElementById('sw-form-card').classList.add('editing');
+
+      if (aktiveSwRow) aktiveSwRow.classList.remove('active-row');
+      aktiveSwRow = document.getElementById(`row-s${d.id}`);
+      if (aktiveSwRow) aktiveSwRow.classList.add('active-row');
+      document.getElementById('sw-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  window.swAbbrechen = function() {
+    document.getElementById('sw-form').reset();
+    document.getElementById('sw-form').action = '/admin/schlagwort/neu';
+    document.getElementById('sw-form-title').textContent = 'Schlagwort anlegen';
+    document.getElementById('sw-submit-btn').textContent = '+ Schlagwort anlegen';
+    document.getElementById('sw-abbrechen-btn').style.display = 'none';
+    document.getElementById('sw-form-card').classList.remove('editing');
+    if (aktiveSwRow) { aktiveSwRow.classList.remove('active-row'); aktiveSwRow = null; }
+  };
+
+});
+
+// Gruppe verschieben
+window.moveGruppe = function(id, direction) {
+  fetch(`/api/gruppe/${id}/move?direction=${direction}`, { method: 'POST' })
+    .then(() => location.reload());
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feuerwehr — Alarmierung</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red: #E8180B; --red-dark: #A31008;
+    --bg: #0A0A0B; --surface: #111214; --surface2: #18191D;
+    --border: #2A2B30; --text: #F0F0F2; --muted: #7A7C85;
+    --green: #22C55E; --yellow: #EAB308;
+    --c-einsatzbereit: #4B5563;
+    --c-alarmiert: #22C55E;
+    --c-bereitschaft: #EAB308;
+    --c-nicht: #E8180B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Barlow', sans-serif; min-height: 100vh; overflow-x: hidden; }
+  body::before { content: ''; position: fixed; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.015) 2px, rgba(255,255,255,0.015) 4px); pointer-events: none; z-index: 999; }
+
+  header { display: flex; align-items: center; justify-content: space-between; padding: 0 2rem; height: 64px; background: var(--surface); border-bottom: 2px solid var(--red); position: sticky; top: 0; z-index: 100; }
+  .logo { display: flex; align-items: center; gap: 12px; font-family: 'Barlow Condensed', sans-serif; font-weight: 900; font-size: 1.4rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .logo-icon { width: 36px; height: 36px; background: var(--red); border-radius: 4px; display: grid; place-items: center; font-size: 1.1rem; }
+  .nav-links { display: flex; gap: 0.6rem; list-style: none; align-items: center; }
+  .hdr-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); cursor: pointer; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: transparent; transition: all 0.2s; text-decoration: none; font-family: 'Barlow', sans-serif; white-space: nowrap; }
+  .hdr-btn:hover { color: var(--text); border-color: #555; }
+  .hdr-btn.active { color: #FCD34D; border-color: rgba(252,211,77,0.4); background: rgba(252,211,77,0.06); }
+  .hdr-btn.alarm-end { color: #FF6B60; border-color: rgba(255,107,96,0.3); }
+  .hdr-btn.alarm-end:hover { background: rgba(232,24,11,0.1); }
+  .hdr-btn.einsatz-link { color: var(--green); border-color: rgba(34,197,94,0.3); }
+  .hdr-btn.einsatz-link:hover { background: rgba(34,197,94,0.08); }
+  #save-indicator { font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 5px; display: none; }
+  #save-indicator.saving { display: inline-block; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); }
+  #save-indicator.saved { display: inline-block; color: var(--green); background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); }
+
+  main { display: flex; min-height: calc(100vh - 64px); }
+  .sidebar { width: 340px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .sidebar-header { padding: 1.25rem 1.5rem 1rem; border-bottom: 1px solid var(--border); }
+  .sidebar-label { font-family: 'Barlow Condensed', sans-serif; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--red); margin-bottom: 0.25rem; }
+  .sidebar-title { font-family: 'Barlow Condensed', sans-serif; font-size: 1.1rem; font-weight: 700; }
+  .schlagwort-list { flex: 1; overflow-y: auto; padding: 0.75rem; }
+  .schlagwort-btn { display: block; width: 100%; padding: 0.75rem 1rem; margin-bottom: 0.25rem; background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--text); text-align: left; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.15s; text-decoration: none; }
+  .schlagwort-btn:hover { background: var(--surface2); border-color: var(--border); }
+  .schlagwort-btn.active { background: rgba(232,24,11,0.12); border-color: var(--red); color: #FF6B60; }
+  .schlagwort-btn .sw-code { display: block; font-size: 0.7rem; color: var(--muted); font-weight: 400; margin-top: 2px; }
+  .empty-hint { padding: 2rem 1.5rem; color: var(--muted); font-size: 0.85rem; text-align: center; line-height: 1.6; }
+
+  .content { flex: 1; padding: 2rem 2.5rem; overflow-y: auto; }
+  .alarm-header { margin-bottom: 1.25rem; }
+  .alarm-badge { display: inline-flex; align-items: center; gap: 8px; background: var(--red); color: white; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 4px 10px; border-radius: 3px; margin-bottom: 0.75rem; animation: pulse-badge 2s infinite; }
+  @keyframes pulse-badge { 0%,100%{opacity:1;} 50%{opacity:0.7;} }
+  .alarm-title { font-family: 'Barlow Condensed', sans-serif; font-size: 2.5rem; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1; margin-bottom: 0.4rem; }
+  .alarm-desc { color: var(--muted); font-size: 0.9rem; }
+
+  /* Legende */
+.gruppe-section { margin-bottom: 1rem; }
+  .gruppe-header { display: flex; align-items: center; gap: 10px; margin-bottom: 0.65rem; padding-bottom: 0.45rem; border-bottom: 1px solid var(--border); }
+  .gruppe-label { font-family: 'Barlow Condensed', sans-serif; font-size: 1rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #FCD34D; }
+  .gruppe-count { font-size: 0.72rem; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); border-radius: 99px; padding: 2px 7px; }
+
+  .fahrzeug-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.6rem; }
+
+  /* Fahrzeugkarte */
+  .fahrzeug-card {
+    background: var(--surface2);
+    border: 2px solid var(--border);
+    border-radius: 10px; padding: 0.9rem 1rem;
+    position: relative; overflow: hidden;
+    transition: transform 0.12s, box-shadow 0.12s, border-color 0.15s, background 0.15s;
+    cursor: pointer; user-select: none;
+  }
+  .fahrzeug-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c-einsatzbereit); transition: background 0.15s; }
+
+  /* Status-Klassen */
+  .status-einsatzbereit { border-color: var(--border); }
+  .status-einsatzbereit::before { background: var(--c-einsatzbereit); }
+
+  .status-alarmiert { border-color: var(--c-alarmiert); background: rgba(34,197,94,0.07); }
+  .status-alarmiert::before { background: var(--c-alarmiert); }
+
+  .status-bereitschaft { border-color: var(--c-bereitschaft); background: rgba(234,179,8,0.07); }
+  .status-bereitschaft::before { background: var(--c-bereitschaft); }
+
+  .status-nicht_einsatzbereit { border-color: var(--c-nicht); background: rgba(232,24,11,0.06); opacity: 0.55; border-style: dashed; }
+  .status-nicht_einsatzbereit::before { background: var(--c-nicht); }
+
+  .fahrzeug-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+
+  .drag-handle { display: none; position: absolute; top: 0.55rem; right: 0.55rem; color: var(--muted); font-size: 0.85rem; cursor: grab; }
+  .sortable-mode .drag-handle { display: block; }
+  .sortable-ghost { opacity: 0.25; border: 2px dashed #FCD34D !important; }
+  .sortable-chosen { box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important; transform: scale(1.02) !important; }
+
+  .fahrzeug-name { font-family: 'Barlow Condensed', sans-serif; font-size: 1.2rem; font-weight: 700; margin-bottom: 0.15rem; padding-right: 1.2rem; }
+  .fahrzeug-meta { font-size: 0.75rem; color: var(--muted); margin-bottom: 0.35rem; }
+  .fahrzeug-funkkennung { font-size: 0.72rem; color: #93C5FD; font-weight: 600; margin-bottom: 0.45rem; }
+
+  .status-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; }
+  .sl-einsatzbereit { color: #9CA3AF; background: rgba(75,85,99,0.2); border: 1px solid rgba(75,85,99,0.4); }
+  .sl-alarmiert { color: var(--green); background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); }
+  .sl-bereitschaft { color: var(--yellow); background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.3); }
+  .sl-nicht_einsatzbereit { color: #FF6B60; background: rgba(232,24,11,0.12); border: 1px solid rgba(232,24,11,0.3); }
+
+  .count-info { margin-top: 1.25rem; margin-bottom: 1.5rem; padding: 0.65rem 1rem; background: var(--surface); border-radius: 8px; font-size: 0.78rem; color: var(--muted); border: 1px solid var(--border); display: flex; gap: 1rem; flex-wrap: wrap; }
+  .count-info span { display: flex; align-items: center; gap: 5px; }
+  .count-info strong { color: var(--text); }
+
+  .warnungen { margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+  .warnung { display: flex; align-items: flex-start; gap: 10px; padding: 0.7rem 1rem; background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.35); border-radius: 8px; font-size: 0.82rem; }
+  .warnung-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+  .warnung-text strong { color: #FCD34D; display: block; margin-bottom: 2px; }
+  .warnung-text span { color: var(--muted); }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div id="app-data"
+  data-alarm-aktiv="{{ '1' if aktiver_alarm else '0' }}"
+  style="display:none"></div>
+
+{% macro fahrzeug_card(f, schlagwort_ids) %}
+<div class="fahrzeug-card status-{{ f.status }}"
+     data-id="{{ f.id }}"
+     data-status="{{ f.status }}"
+     data-toggle-id="{{ f.id }}"
+     title="Klicken zum Statuswechsel">
+  <span class="drag-handle">⠿</span>
+  <div class="fahrzeug-name">{{ f.name }}</div>
+  {% if f.kennzeichen %}<div class="fahrzeug-meta">{{ f.kennzeichen }}</div>{% endif %}
+  {% if f.funkkennung %}<div class="fahrzeug-funkkennung">📻 {{ f.funkkennung }}</div>{% endif %}
+  <span class="status-label sl-{{ f.status }}">
+    {% if f.status == 'einsatzbereit' %}Einsatzbereit
+    {% elif f.status == 'alarmiert' %}Alarmiert
+    {% elif f.status == 'bereitschaft' %}Bereitschaft
+    {% else %}Nicht einsatzbereit{% endif %}
+  </span>
+</div>
+{% endmacro %}
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🔥</div>
+    Feuerwehr&nbsp;<span style="color:var(--red)">Alarm</span>
+  </div>
+  <ul class="nav-links">
+    <li><span id="save-indicator"></span></li>
+    {% if aktiver_alarm %}
+    <li><a href="/einsatz" class="hdr-btn einsatz-link" target="_blank">🚨 Einsatzübersicht</a></li>
+    <li>
+      <form method="post" action="/api/alarm/beenden" style="display:inline">
+        <button type="submit" class="hdr-btn alarm-end">✕ Alarm beenden</button>
+      </form>
+    </li>
+    {% endif %}
+    <li><button class="hdr-btn" id="sort-toggle" onclick="toggleSortMode()">⠿ Reihenfolge</button></li>
+    <li><a href="/admin" class="hdr-btn">⚙ Admin</a></li>
+  </ul>
+</header>
+
+<main>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-label">Schlagworte</div>
+      <div class="sidebar-title">Alarmstichwort wählen</div>
+    </div>
+    <div class="schlagwort-list">
+      {% if schlagworte %}
+        {% for sw in schlagworte %}
+        {% set is_active = aktives_schlagwort is defined and aktives_schlagwort.id == sw.id %}
+        {% set is_blocked = aktiver_alarm and not is_active %}
+        <a href="{% if is_blocked %}#{% else %}/alarm/{{ sw.id }}{% endif %}"
+           class="schlagwort-btn {% if is_active %}active{% elif is_blocked %}disabled{% endif %}">
+          {{ sw.name }}
+          {% if sw.beschreibung %}<span class="sw-code">{{ sw.beschreibung }}</span>{% endif %}
+        </a>
+        {% endfor %}
+      {% else %}
+        <div class="empty-hint">Noch keine Schlagworte angelegt.</div>
+      {% endif %}
+    </div>
+  </aside>
+
+  <div class="content">
+    {% if aktives_schlagwort is defined %}
+      <div class="alarm-header">
+        <div class="alarm-badge"><span style="width:6px;height:6px;border-radius:50%;background:white;display:inline-block;margin-right:2px"></span>Alarm ausgelöst</div>
+        <h1 class="alarm-title">{{ aktives_schlagwort.name }}</h1>
+        {% if aktives_schlagwort.beschreibung %}<p class="alarm-desc">{{ aktives_schlagwort.beschreibung }}</p>{% endif %}
+      </div>
+    {% else %}
+      <div class="alarm-header">
+        <div class="sidebar-label" style="color:var(--muted);margin-bottom:0.3rem">Übersicht</div>
+        <h1 class="alarm-title" style="font-size:1.8rem;color:var(--muted)">Alle Fahrzeuge</h1>
+        <p style="color:var(--muted);font-size:0.85rem;margin-top:0.3rem">Kein Alarm aktiv — Schlagwort auswählen.</p>
+      </div>
+    {% endif %}
+
+    <div class="count-info" id="count-info">
+      <span>Gesamt: <strong>{{ alle_fahrzeuge|length }}</strong></span>
+      <span style="color:#22C55E">● Alarmiert: <strong id="cnt-alarmiert">{{ alle_fahrzeuge|selectattr("status","equalto","alarmiert")|list|length }}</strong></span>
+      <span style="color:#EAB308">● Bereitschaft: <strong id="cnt-bereitschaft">{{ alle_fahrzeuge|selectattr("status","equalto","bereitschaft")|list|length }}</strong></span>
+      <span style="color:#FF6B60">● Nicht einsatzbereit: <strong id="cnt-nicht">{{ alle_fahrzeuge|selectattr("status","equalto","nicht_einsatzbereit")|list|length }}</strong></span>
+    </div>
+
+{% if warnungen %}
+    <div class="warnungen">
+      {% for w in warnungen %}
+      <div class="warnung">
+        <span class="warnung-icon">⚠️</span>
+        <div class="warnung-text">
+          <strong>{{ w.fahrzeug }}</strong>
+          <span>{{ w.grund }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% set ns = namespace(ohne_gruppe=[]) %}
+    {% for f in alle_fahrzeuge %}{% if not f.gruppe_id %}{% set ns.ohne_gruppe = ns.ohne_gruppe + [f] %}{% endif %}{% endfor %}
+
+    {% for gruppe in gruppen %}
+      {% set gf = alle_fahrzeuge | selectattr("gruppe_id", "equalto", gruppe.id) | list %}
+      {% if gf %}
+      <div class="gruppe-section">
+        <div class="gruppe-header">
+          <span class="gruppe-label">📂 {{ gruppe.name }}</span>
+          <span class="gruppe-count">{{ gf|length }}</span>
+        </div>
+        <div class="fahrzeug-grid" data-gruppe="{{ gruppe.id }}">
+          {% for f in gf %}{{ fahrzeug_card(f, schlagwort_fahrzeug_ids) }}{% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    {% endfor %}
+
+    {% if ns.ohne_gruppe %}
+    <div class="gruppe-section">
+      {% if gruppen %}
+      <div class="gruppe-header">
+        <span class="gruppe-label" style="color:var(--muted)">Ohne Gruppe</span>
+        <span class="gruppe-count">{{ ns.ohne_gruppe|length }}</span>
+      </div>
+      {% endif %}
+      <div class="fahrzeug-grid" data-gruppe="none">
+        {% for f in ns.ohne_gruppe %}{{ fahrzeug_card(f, schlagwort_fahrzeug_ids) }}{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<script>
+const ALLE_STATUS = ['einsatzbereit', 'alarmiert', 'bereitschaft', 'nicht_einsatzbereit'];
+const STATUS_LABEL = {
+  'einsatzbereit':        'Einsatzbereit',
+  'alarmiert':            'Alarmiert',
+  'bereitschaft':         'Bereitschaft',
+  'nicht_einsatzbereit':  'Nicht einsatzbereit'
+};
+const alarmAktiv = document.getElementById('app-data').dataset.alarmAktiv === '1';
+
+let sortMode = false;
+const sortables = [];
+let saveTimer = null;
+
+// Event delegation für alle Fahrzeugkarten
+document.addEventListener('click', function(e) {
+  const card = e.target.closest('.fahrzeug-card[data-toggle-id]');
+  if (!card || sortMode) return;
+  toggleStatus(parseInt(card.dataset.toggleId), card);
+});
+
+function toggleStatus(id, el) {
+  if (sortMode) return;
+  fetch('/api/fahrzeug/status-toggle', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fahrzeug_id: id }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    const neu = data.status;
+    ALLE_STATUS.forEach(s => el.classList.remove('status-' + s));
+    el.classList.add('status-' + neu);
+    el.dataset.status = neu;
+    const label = el.querySelector('.status-label');
+    if (label) {
+      label.className = 'status-label sl-' + neu;
+      label.textContent = STATUS_LABEL[neu];
+    }
+    updateCounts();
+  });
+}
+
+function updateCounts() {
+  ['alarmiert', 'bereitschaft', 'nicht_einsatzbereit'].forEach(s => {
+    const el = document.getElementById('cnt-' + s.replace('nicht_einsatzbereit', 'nicht'));
+    if (el) el.textContent = document.querySelectorAll('.status-' + s).length;
+  });
+}
+
+function toggleSortMode() {
+  sortMode = !sortMode;
+  const btn = document.getElementById('sort-toggle');
+  const grids = document.querySelectorAll('.fahrzeug-grid');
+  if (sortMode) {
+    btn.classList.add('active');
+    btn.textContent = '✓ Fertig';
+    grids.forEach(grid => {
+      grid.classList.add('sortable-mode');
+      sortables.push(Sortable.create(grid, {
+        animation: 150, handle: '.drag-handle',
+        ghostClass: 'sortable-ghost', chosenClass: 'sortable-chosen',
+        group: 'fahrzeuge',
+        onEnd: () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveOrder, 400); }
+      }));
+    });
+  } else {
+    btn.classList.remove('active');
+    btn.textContent = '⠿ Reihenfolge';
+    sortables.forEach(s => s.destroy());
+    sortables.length = 0;
+    grids.forEach(g => g.classList.remove('sortable-mode'));
+  }
+}
+
+function saveOrder() {
+  const ind = document.getElementById('save-indicator');
+  ind.textContent = '↑ Speichern…'; ind.className = 'saving';
+  const items = [];
+  document.querySelectorAll('.fahrzeug-grid').forEach(grid => {
+    grid.querySelectorAll('.fahrzeug-card').forEach((card, i) => {
+      items.push({ id: parseInt(card.dataset.id), position: i });
+    });
+  });
+  fetch('/api/fahrzeug/reihenfolge', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(items),
+  }).then(() => {
+    ind.textContent = '✓ Gespeichert'; ind.className = 'saved';
+    setTimeout(() => { ind.className = ''; ind.style.display = 'none'; }, 2000);
+  });
+}
+</script>
+</body>
+</html>

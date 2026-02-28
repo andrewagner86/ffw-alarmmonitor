@@ -1,0 +1,32 @@
+---
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: feuerwehr_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: feuerwehr
+      POSTGRES_USER: feuerwehr
+      POSTGRES_PASSWORD: feuerwehr123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U feuerwehr"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: feuerwehr_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://feuerwehr:feuerwehr123@db:5432/feuerwehr
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
