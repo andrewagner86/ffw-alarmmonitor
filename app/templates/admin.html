@@ -42,14 +42,15 @@
   .card-header { padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--border); font-family: 'Barlow Condensed', sans-serif; font-size: 1.1rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; display: flex; align-items: center; justify-content: space-between; }
   .card-body { padding: 1.5rem; }
   label { display: block; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.4rem; }
-  input[type="text"], select { font-family: 'Barlow', sans-serif; }
-  input[type="text"], select {
+  input[type="text"], select, textarea { font-family: 'Barlow', sans-serif; }
+  input[type="text"], select, textarea {
     width: 100%; background: var(--surface2); border: 1px solid var(--border);
     border-radius: 7px; color: var(--text); padding: 0.6rem 0.9rem;
     font-size: 0.9rem; transition: border-color 0.15s; margin-bottom: 1rem;
   }
+  textarea { resize: vertical; min-height: 80px; }
   select option { background: var(--surface2); }
-  input[type="text"]:focus, select:focus { outline: none; border-color: var(--red); }
+  input[type="text"]:focus, select:focus, textarea:focus { outline: none; border-color: var(--red); }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
   .checkbox-group { display: flex; flex-direction: column; gap: 0.5rem; max-height: 200px; overflow-y: auto; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; padding: 0.75rem; margin-bottom: 1rem; }
   .checkbox-item { display: flex; align-items: center; gap: 10px; padding: 0.4rem 0.5rem; border-radius: 5px; cursor: pointer; transition: background 0.1s; }
@@ -62,7 +63,7 @@
   .btn-primary:hover { background: var(--red-dark); }
   .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
   .btn-ghost:hover { color: var(--text); border-color: #555; }
-  .btn-danger { background: transparent; color: #FF6B60; border: 1px solid rgba(255,107,96,0.3); font-size: 0.8rem; padding: 0.35rem 0.75rem; }
+  .btn-danger { background: transparent; color: #FF6B60; border: 1px solid rgba(255,107,96,0.3); font-size: 1rem; padding: 0; width: 2rem; height: 2rem; display: inline-flex; align-items: center; justify-content: center; }
   .btn-danger:hover { background: rgba(232,24,11,0.1); }
   .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
   .form-actions { display: flex; gap: 8px; margin-top: 0.25rem; }
@@ -86,6 +87,7 @@
   }
   .btn-move:hover:not(:disabled) { color: var(--text); border-color: #555; background: var(--surface2); }
   .btn-move:disabled { opacity: 0.2; cursor: default; }
+  .btn-icon { padding: 0; width: 2rem; height: 2rem; display: inline-flex; align-items: center; justify-content: center; font-size: 1rem; }
 
   ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -105,12 +107,14 @@
 
 <div class="page">
   <div class="page-title">Administration</div>
-  <div class="page-subtitle">Fahrzeuge, Gruppen und Alarmierungsschlagworte verwalten</div>
+  <div class="page-subtitle">Fahrzeuggruppen, Fahrzeuge, Territorien, Alarmierungstypen und Alarmierungspläne verwalten</div>
 
   <div class="tabs">
-    <a href="/admin"            class="tab-btn {% if tab == 'fahrzeuge' %}active{% endif %}">🚒 Fahrzeuge</a>
-    <a href="/admin/gruppen"    class="tab-btn {% if tab == 'gruppen'   %}active{% endif %}">📂 Gruppen</a>
-    <a href="/admin/schlagworte" class="tab-btn {% if tab == 'schlagworte' %}active{% endif %}">⚡ Schlagworte</a>
+    <a href="/admin/gruppen"    class="tab-btn {% if tab == 'gruppen'   %}active{% endif %}">📂 Fahrzeuggruppen</a>
+    <a href="/admin/fahrzeuge"            class="tab-btn {% if tab == 'fahrzeuge' %}active{% endif %}">🚒 Fahrzeuge</a>
+    <a href="/admin/territorien" class="tab-btn {% if tab == 'territorien' %}active{% endif %}">🌍 Territorien</a>
+    <a href="/admin/alarmierungstypen" class="tab-btn {% if tab == 'alarmierungstypen' %}active{% endif %}">⚡ Alarmierungstypen</a>
+    <a href="/admin/alarmierungsplaene" class="tab-btn {% if tab == 'alarmierungsplaene' %}active{% endif %}">📋 Alarmierungspläne</a>
   </div>
 
 
@@ -144,9 +148,9 @@
               <input type="text" id="f-typ" name="typ" placeholder="z.B. Löschfahrzeug" required>
             </div>
           </div>
-          <label>Gruppe</label>
+          <label>Fahrzeuggruppe</label>
           <select id="f-gruppe" name="gruppe_id">
-            <option value="">— Keine Gruppe —</option>
+            <option value="">— Keine Fahrzeuggruppe —</option>
             {% for g in gruppen %}
             <option value="{{ g.id }}">{{ g.name }}</option>
             {% endfor %}
@@ -177,7 +181,7 @@
         <thead>
           <tr>
             <th>Fahrzeug</th>
-            <th>Gruppe</th>
+            <th>Fahrzeuggruppe</th>
             <th>Ersatz</th>
             <th>Aktionen</th>
           </tr>
@@ -187,7 +191,9 @@
           <tr id="row-f{{ f.id }}">
             <td>
               <strong>{{ f.name }}</strong><br>
-              <small style="color:var(--muted)">{{ f.kennzeichen }}{% if f.funkkennung %} · {{ f.funkkennung }}{% endif %}</small>
+              {% if f.kennzeichen %}<small style="color:var(--muted);display:block">{{ f.kennzeichen }}</small>{% endif %}
+              {% if f.funkkennung %}<small style="color:var(--muted);display:block">{{ f.funkkennung }}</small>{% endif %}
+              {% if not f.kennzeichen and not f.funkkennung %}<small style="color:var(--muted)">—</small>{% endif %}
             </td>
             <td>
               {% if f.gruppe %}<span class="tag-gruppe">{{ f.gruppe.name }}</span>
@@ -200,17 +206,17 @@
             </td>
             <td>
               <div class="actions">
-                <button class="btn btn-ghost btn-sm bearbeiten-fahrzeug"
+                <button class="btn btn-ghost btn-sm btn-icon bearbeiten-fahrzeug"
                   data-id="{{ f.id }}"
                   data-name="{{ f.name | e }}"
-                  data-kennzeichen="{{ f.kennzeichen | e }}"
+                  data-kennzeichen="{{ (f.kennzeichen or '') | e }}"
                   data-funkkennung="{{ (f.funkkennung or '') | e }}"
                   data-typ="{{ f.typ | e }}"
                   data-gruppe="{{ f.gruppe_id or '' }}"
                   data-ersatz="{% for e in f.ersatzfahrzeuge %}{{ e.id }}{% if not loop.last %},{% endif %}{% endfor %}"
-                >Bearbeiten</button>
+                 title="Bearbeiten">✏️</button>
                 <form method="post" action="/admin/fahrzeug/{{ f.id }}/loeschen" onsubmit="return confirm('Fahrzeug löschen?')">
-                  <button type="submit" class="btn btn-danger">Löschen</button>
+                  <button type="submit" class="btn btn-danger" title="Löschen">🗑️</button>
                 </form>
               </div>
             </td>
@@ -233,14 +239,14 @@
 
     <div class="card" id="gruppe-form-card">
       <div class="card-header">
-        <span id="gruppe-form-title">Gruppe anlegen</span>
+        <span id="gruppe-form-title">Fahrzeuggruppe anlegen</span>
       </div>
       <div class="card-body">
         <form id="gruppe-form" method="post" action="/admin/gruppe/neu">
-          <label>Gruppenname</label>
+          <label>Fahrzeuggruppenname</label>
           <input type="text" id="g-name" name="name" placeholder="z.B. Löschzug, Hilfeleistung" required>
           <div class="form-actions">
-            <button type="submit" id="gruppe-submit-btn" class="btn btn-primary">+ Gruppe anlegen</button>
+            <button type="submit" id="gruppe-submit-btn" class="btn btn-primary">+ Fahrzeuggruppe anlegen</button>
             <button type="button" id="gruppe-abbrechen-btn" class="btn btn-ghost" style="display:none" onclick="gruppeAbbrechen()">✕ Abbrechen</button>
           </div>
         </form>
@@ -248,13 +254,13 @@
     </div>
 
     <div class="card">
-      <div class="card-header">Vorhandene Gruppen ({{ gruppen|length }})</div>
+      <div class="card-header">Vorhandene Fahrzeuggruppen ({{ gruppen|length }})</div>
       {% if gruppen %}
       <table class="data-table">
         <thead>
           <tr>
             <th style="width:64px">Reihenfolge</th>
-            <th>Gruppe</th>
+            <th>Fahrzeuggruppe</th>
             <th>Fahrzeuge</th>
             <th>Aktionen</th>
           </tr>
@@ -272,12 +278,12 @@
             <td style="color:var(--muted)">{{ g.fahrzeuge|length }}</td>
             <td>
               <div class="actions">
-                <button class="btn btn-ghost btn-sm bearbeiten-gruppe"
+                <button class="btn btn-ghost btn-sm btn-icon bearbeiten-gruppe"
                   data-id="{{ g.id }}"
                   data-name="{{ g.name | e }}"
-                >Bearbeiten</button>
-                <form method="post" action="/admin/gruppe/{{ g.id }}/loeschen" onsubmit="return confirm('Gruppe löschen?')">
-                  <button type="submit" class="btn btn-danger">Löschen</button>
+                 title="Bearbeiten">✏️</button>
+                <form method="post" action="/admin/gruppe/{{ g.id }}/loeschen" onsubmit="return confirm('Fahrzeuggruppe löschen?')">
+                  <button type="submit" class="btn btn-danger" title="Löschen">🗑️</button>
                 </form>
               </div>
             </td>
@@ -286,7 +292,7 @@
         </tbody>
       </table>
       {% else %}
-      <div class="empty-state">Noch keine Gruppen angelegt.</div>
+      <div class="empty-state">Noch keine Fahrzeuggruppen angelegt.</div>
       {% endif %}
     </div>
 
@@ -294,22 +300,178 @@
   {% endif %}
 
 
-  <!-- ══════════ TAB: SCHLAGWORTE ══════════ -->
-  {% if tab == 'schlagworte' %}
+  <!-- ══════════ TAB: ALARMIERUNGSTYPEN ══════════ -->
+  {% if tab == 'alarmierungstypen' %}
   <div class="admin-grid">
 
-    <div class="card" id="sw-form-card">
+    <div class="card" id="at-form-card">
       <div class="card-header">
-        <span id="sw-form-title">Schlagwort anlegen</span>
+        <span id="at-form-title">Alarmierungstyp anlegen</span>
       </div>
       <div class="card-body">
-        <form id="sw-form" method="post" action="/admin/schlagwort/neu">
-          <label>Schlagwort / Name</label>
-          <input type="text" id="sw-name" name="name" placeholder="z.B. BRAND Gebäude" required>
+        <form id="at-form" method="post" action="/admin/alarmierungstyp/neu">
+          <label>Name</label>
+          <input type="text" id="at-name" name="name" placeholder="z.B. BRAND Gebäude" required>
           <label>Beschreibung (optional)</label>
-          <input type="text" id="sw-beschreibung" name="beschreibung" placeholder="z.B. B1 – Kleinbrand">
-          <label>Fahrzeuge zuordnen</label>
-          <div class="checkbox-group" id="sw-fahrzeuge">
+          <input type="text" id="at-beschreibung" name="beschreibung" placeholder="z.B. B1 – Kleinbrand">
+          <label>Alarmierungsstichworte (optional, eines pro Zeile)</label>
+          <textarea id="at-stichworte" name="stichworte" rows="4" placeholder="z.B.&#10;BRAND Gebäude&#10;F1&#10;Feuer"></textarea>
+          <div class="form-actions">
+            <button type="submit" id="at-submit-btn" class="btn btn-primary">+ Alarmierungstyp anlegen</button>
+            <button type="button" id="at-abbrechen-btn" class="btn btn-ghost" style="display:none" onclick="atAbbrechen()">✕ Abbrechen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Vorhandene Alarmierungstypen ({{ alarmierungstypen|length }})</div>
+      {% if alarmierungstypen %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Alarmierungstyp</th>
+            <th>Stichworte</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sw in alarmierungstypen %}
+          <tr id="row-s{{ sw.id }}">
+            <td>
+              <strong>{{ sw.name }}</strong>
+              {% if sw.beschreibung %}<br><small style="color:var(--muted)">{{ sw.beschreibung }}</small>{% endif %}
+            </td>
+            <td>
+              {% if sw.alarmierungsstichworte %}
+                <div class="tag-list">{% for ast in sw.alarmierungsstichworte %}<span class="tag" style="background:rgba(139,92,246,0.1);border-color:rgba(139,92,246,0.3);color:#C4B5FD">{{ ast.text }}</span>{% endfor %}</div>
+              {% else %}<span style="color:var(--muted);font-size:0.8rem">—</span>{% endif %}
+            </td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-ghost btn-sm btn-icon bearbeiten-alarmierungstyp"
+                  data-id="{{ sw.id }}"
+                  data-name="{{ sw.name | e }}"
+                  data-beschreibung="{{ (sw.beschreibung or '') | e }}"
+                  data-stichworte="{{ sw.alarmierungsstichworte | map(attribute='text') | join('
+') | e }}"
+                 title="Bearbeiten">✏️</button>
+                <form method="post" action="/admin/alarmierungstyp/{{ sw.id }}/loeschen" onsubmit="return confirm('Alarmierungstyp löschen?')">
+                  <button type="submit" class="btn btn-danger" title="Löschen">🗑️</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">Noch keine Alarmierungstypen angelegt.</div>
+      {% endif %}
+    </div>
+
+  </div>
+  {% endif %}
+
+
+  <!-- ══════════ TAB: TERRITORIEN ══════════ -->
+  {% if tab == 'territorien' %}
+  <div class="admin-grid">
+
+    <div class="card" id="territorium-form-card">
+      <div class="card-header">
+        <span id="territorium-form-title">Territorium anlegen</span>
+      </div>
+      <div class="card-body">
+        <form id="territorium-form" method="post" action="/admin/territorium/neu">
+          <label>Name</label>
+          <input type="text" id="t-name" name="name" placeholder="z.B. Ortschaft Nord" required>
+          <label>Beschreibung (optional)</label>
+          <input type="text" id="t-beschreibung" name="beschreibung" placeholder="z.B. Nördlicher Bereich">
+          <div class="form-actions">
+            <button type="submit" id="territorium-submit-btn" class="btn btn-primary">+ Territorium anlegen</button>
+            <button type="button" id="territorium-abbrechen-btn" class="btn btn-ghost" style="display:none" onclick="territoriumAbbrechen()">✕ Abbrechen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Vorhandene Territorien ({{ territorien|length }})</div>
+      {% if territorien %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Territorium</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in territorien %}
+          <tr id="row-t{{ t.id }}">
+            <td>
+              <strong>{{ t.name }}</strong>
+              {% if t.beschreibung %}<br><small style="color:var(--muted)">{{ t.beschreibung }}</small>{% endif %}
+            </td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-ghost btn-sm btn-icon bearbeiten-territorium"
+                  data-id="{{ t.id }}"
+                  data-name="{{ t.name | e }}"
+                  data-beschreibung="{{ (t.beschreibung or '') | e }}"
+                 title="Bearbeiten">✏️</button>
+                <form method="post" action="/admin/territorium/{{ t.id }}/loeschen" onsubmit="return confirm('Territorium löschen?')">
+                  <button type="submit" class="btn btn-danger" title="Löschen">🗑️</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state">Noch keine Territorien angelegt.</div>
+      {% endif %}
+    </div>
+
+  </div>
+  {% endif %}
+
+
+  <!-- ══════════ TAB: EINSATZPLAN ══════════ -->
+  {% if tab == 'alarmierungsplaene' %}
+  <div class="admin-grid" style="grid-template-columns: 1fr 2fr">
+
+    <div class="card" id="ep-form-card">
+      <div class="card-header">
+        <span id="ep-form-title">Alarmierungsplan anlegen</span>
+      </div>
+      <div class="card-body">
+        <form id="ep-form" method="post" action="/admin/alarmierungsplan/neu">
+
+          <label>Alarmierungstyp</label>
+          <select id="ep-alarmierungstyp" name="alarmierungstyp_id" required onchange="loadStichworte(this.value)">
+            <option value="">— Bitte wählen —</option>
+            {% for at in alarmierungstypen %}
+            <option value="{{ at.id }}">{{ at.name }}</option>
+            {% endfor %}
+          </select>
+
+          <label>Alarmierungsstichwort (optional)</label>
+          <select id="ep-stichwort" name="stichwort_id">
+            <option value="">— keines —</option>
+          </select>
+
+          <label>Territorium</label>
+          <select id="ep-territorium" name="territorium_id" required>
+            <option value="">— Bitte wählen —</option>
+            {% for t in territorien %}
+            <option value="{{ t.id }}">{{ t.name }}</option>
+            {% endfor %}
+          </select>
+
+          <label>Fahrzeuge</label>
+          <div class="checkbox-group" id="ep-fahrzeuge">
             {% for f in fahrzeuge %}
             <label class="checkbox-item">
               <input type="checkbox" name="fahrzeug_ids" value="{{ f.id }}" data-fid="{{ f.id }}">
@@ -319,48 +481,59 @@
             <div style="color:var(--muted);font-size:0.8rem;padding:0.5rem">Keine Fahrzeuge vorhanden</div>
             {% endfor %}
           </div>
+
+          <label class="checkbox-item" style="margin-bottom:1rem;gap:10px">
+            <input type="checkbox" id="ep-standard" name="ist_standard" value="true" style="width:16px;height:16px;accent-color:var(--red)">
+            <span style="font-size:0.88rem;font-weight:600">Standard-Alarmierung für diesen Alarmierungstyp</span>
+          </label>
+
           <div class="form-actions">
-            <button type="submit" id="sw-submit-btn" class="btn btn-primary">+ Schlagwort anlegen</button>
-            <button type="button" id="sw-abbrechen-btn" class="btn btn-ghost" style="display:none" onclick="swAbbrechen()">✕ Abbrechen</button>
+            <button type="submit" id="ep-submit-btn" class="btn btn-primary">+ Alarmierungsplan anlegen</button>
+            <button type="button" id="ep-abbrechen-btn" class="btn btn-ghost" style="display:none" onclick="epAbbrechen()">✕ Abbrechen</button>
           </div>
         </form>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-header">Vorhandene Schlagworte ({{ schlagworte|length }})</div>
-      {% if schlagworte %}
+      <div class="card-header">Vorhandene Alarmierungspläne ({{ einsatzplaene|length }})</div>
+      {% if einsatzplaene %}
       <table class="data-table">
         <thead>
           <tr>
-            <th>Schlagwort</th>
+            <th>Alarmierungstyp</th>
+            <th>Stichwort</th>
+            <th>Territorium</th>
             <th>Fahrzeuge</th>
+            <th>STD</th>
             <th>Aktionen</th>
           </tr>
         </thead>
         <tbody>
-          {% for sw in schlagworte %}
-          <tr id="row-s{{ sw.id }}">
-            <td>
-              <strong>{{ sw.name }}</strong>
-              {% if sw.beschreibung %}<br><small style="color:var(--muted)">{{ sw.beschreibung }}</small>{% endif %}
-            </td>
+          {% for ep in einsatzplaene %}
+          <tr id="row-ep{{ ep.id }}">
+            <td><strong>{{ ep.alarmierungstyp.name }}</strong></td>
+            <td>{% if ep.stichwort %}<span class="tag" style="background:rgba(139,92,246,0.1);border-color:rgba(139,92,246,0.3);color:#C4B5FD">{{ ep.stichwort.text }}</span>{% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
+            <td>{% if ep.territorium %}<span class="tag">{{ ep.territorium.name }}</span>{% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
             <td>
               <div class="tag-list">
-                {% for f in sw.fahrzeuge %}<span class="tag">{{ f.name }}</span>
-                {% else %}<span style="color:var(--muted);font-size:0.8rem">—</span>{% endfor %}
+                {% for f in ep.fahrzeuge %}<span class="tag">{{ f.name }}</span>{% endfor %}
+                {% if not ep.fahrzeuge %}<span style="color:var(--muted);font-size:0.8rem">—</span>{% endif %}
               </div>
             </td>
+            <td>{% if ep.ist_standard %}<span style="color:#22C55E;font-size:1.1rem">✓</span>{% endif %}</td>
             <td>
               <div class="actions">
-                <button class="btn btn-ghost btn-sm bearbeiten-sw"
-                  data-id="{{ sw.id }}"
-                  data-name="{{ sw.name | e }}"
-                  data-beschreibung="{{ (sw.beschreibung or '') | e }}"
-                  data-fahrzeuge="{% for f in sw.fahrzeuge %}{{ f.id }}{% if not loop.last %},{% endif %}{% endfor %}"
-                >Bearbeiten</button>
-                <form method="post" action="/admin/schlagwort/{{ sw.id }}/loeschen" onsubmit="return confirm('Schlagwort löschen?')">
-                  <button type="submit" class="btn btn-danger">Löschen</button>
+                <button class="btn btn-ghost btn-sm btn-icon bearbeiten-ep"
+                  data-id="{{ ep.id }}"
+                  data-alarmierungstyp="{{ ep.alarmierungstyp_id }}"
+                  data-stichwort="{{ ep.stichwort_id or '' }}"
+                  data-territorium="{{ ep.territorium_id or '' }}"
+                  data-standard="{{ 'true' if ep.ist_standard else '' }}"
+                  data-fahrzeuge="{% for f in ep.fahrzeuge %}{{ f.id }}{% if not loop.last %},{% endif %}{% endfor %}"
+                 title="Bearbeiten">✏️</button>
+                <form method="post" action="/admin/alarmierungsplan/{{ ep.id }}/loeschen" onsubmit="return confirm('Alarmierungsplan löschen?')">
+                  <button type="submit" class="btn btn-danger" title="Löschen">🗑️</button>
                 </form>
               </div>
             </td>
@@ -369,7 +542,7 @@
         </tbody>
       </table>
       {% else %}
-      <div class="empty-state">Noch keine Schlagworte angelegt.</div>
+      <div class="empty-state">Noch keine Alarmierungspläne angelegt.</div>
       {% endif %}
     </div>
 
@@ -388,8 +561,8 @@ document.addEventListener('DOMContentLoaded', function() {
     btn.addEventListener('click', function() {
       const d = this.dataset;
       document.getElementById('f-name').value = d.name;
-      document.getElementById('f-kennzeichen').value = d.kennzeichen;
-      document.getElementById('f-funkkennung').value = d.funkkennung;
+      document.getElementById('f-kennzeichen').value = d.kennzeichen !== 'None' ? (d.kennzeichen || '') : '';
+      document.getElementById('f-funkkennung').value = d.funkkennung !== 'None' ? (d.funkkennung || '') : '';
       document.getElementById('f-typ').value = d.typ;
       document.getElementById('f-gruppe').value = d.gruppe || '';
       const ersatzIds = d.ersatz ? d.ersatz.split(',').map(Number).filter(Boolean) : [];
@@ -433,7 +606,7 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('g-name').value = d.name;
 
       document.getElementById('gruppe-form').action = `/admin/gruppe/${d.id}/bearbeiten`;
-      document.getElementById('gruppe-form-title').textContent = 'Gruppe bearbeiten';
+      document.getElementById('gruppe-form-title').textContent = 'Fahrzeuggruppe bearbeiten';
       document.getElementById('gruppe-submit-btn').textContent = '✓ Speichern';
       document.getElementById('gruppe-abbrechen-btn').style.display = 'inline-flex';
       document.getElementById('gruppe-form-card').classList.add('editing');
@@ -448,47 +621,129 @@ document.addEventListener('DOMContentLoaded', function() {
   window.gruppeAbbrechen = function() {
     document.getElementById('gruppe-form').reset();
     document.getElementById('gruppe-form').action = '/admin/gruppe/neu';
-    document.getElementById('gruppe-form-title').textContent = 'Gruppe anlegen';
-    document.getElementById('gruppe-submit-btn').textContent = '+ Gruppe anlegen';
+    document.getElementById('gruppe-form-title').textContent = 'Fahrzeuggruppe anlegen';
+    document.getElementById('gruppe-submit-btn').textContent = '+ Fahrzeuggruppe anlegen';
     document.getElementById('gruppe-abbrechen-btn').style.display = 'none';
     document.getElementById('gruppe-form-card').classList.remove('editing');
     if (aktiveGruppeRow) { aktiveGruppeRow.classList.remove('active-row'); aktiveGruppeRow = null; }
   };
 
   // ── Schlagworte ────────────────────────────────────────────────────────────
-  let aktiveSwRow = null;
+  let aktiveAtRow = null;
 
-  document.querySelectorAll('.bearbeiten-sw').forEach(btn => {
+  document.querySelectorAll('.bearbeiten-alarmierungstyp').forEach(btn => {
     btn.addEventListener('click', function() {
       const d = this.dataset;
       const ids = d.fahrzeuge ? d.fahrzeuge.split(',').map(Number).filter(Boolean) : [];
-      document.getElementById('sw-name').value = d.name;
-      document.getElementById('sw-beschreibung').value = d.beschreibung;
-      document.querySelectorAll('#sw-fahrzeuge input[type="checkbox"]').forEach(cb => {
+      document.getElementById('at-name').value = d.name;
+      document.getElementById('at-beschreibung').value = d.beschreibung;
+      document.getElementById('at-stichworte').value = d.stichworte || '';
+      document.querySelectorAll('#at-fahrzeuge input[type="checkbox"]').forEach(cb => {
         cb.checked = ids.includes(parseInt(cb.dataset.fid));
       });
 
-      document.getElementById('sw-form').action = `/admin/schlagwort/${d.id}/bearbeiten`;
-      document.getElementById('sw-form-title').textContent = 'Schlagwort bearbeiten';
-      document.getElementById('sw-submit-btn').textContent = '✓ Speichern';
-      document.getElementById('sw-abbrechen-btn').style.display = 'inline-flex';
-      document.getElementById('sw-form-card').classList.add('editing');
+      document.getElementById('at-form').action = `/admin/alarmierungstyp/${d.id}/bearbeiten`;
+      document.getElementById('at-form-title').textContent = 'Alarmierungstyp bearbeiten';
+      document.getElementById('at-submit-btn').textContent = '✓ Speichern';
+      document.getElementById('at-abbrechen-btn').style.display = 'inline-flex';
+      document.getElementById('at-form-card').classList.add('editing');
 
-      if (aktiveSwRow) aktiveSwRow.classList.remove('active-row');
-      aktiveSwRow = document.getElementById(`row-s${d.id}`);
-      if (aktiveSwRow) aktiveSwRow.classList.add('active-row');
-      document.getElementById('sw-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (aktiveAtRow) aktiveAtRow.classList.remove('active-row');
+      aktiveAtRow = document.getElementById(`row-s${d.id}`);
+      if (aktiveAtRow) aktiveAtRow.classList.add('active-row');
+      document.getElementById('at-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
 
-  window.swAbbrechen = function() {
-    document.getElementById('sw-form').reset();
-    document.getElementById('sw-form').action = '/admin/schlagwort/neu';
-    document.getElementById('sw-form-title').textContent = 'Schlagwort anlegen';
-    document.getElementById('sw-submit-btn').textContent = '+ Schlagwort anlegen';
-    document.getElementById('sw-abbrechen-btn').style.display = 'none';
-    document.getElementById('sw-form-card').classList.remove('editing');
-    if (aktiveSwRow) { aktiveSwRow.classList.remove('active-row'); aktiveSwRow = null; }
+  window.atAbbrechen = function() {
+    document.getElementById('at-form').reset();
+    document.getElementById('at-stichworte').value = '';
+    document.getElementById('at-form').action = '/admin/alarmierungstyp/neu';
+    document.getElementById('at-form-title').textContent = 'Alarmierungstyp anlegen';
+    document.getElementById('at-submit-btn').textContent = '+ Alarmierungstyp anlegen';
+    document.getElementById('at-abbrechen-btn').style.display = 'none';
+    document.getElementById('at-form-card').classList.remove('editing');
+    if (aktiveAtRow) { aktiveAtRow.classList.remove('active-row'); aktiveAtRow = null; }
+  };
+
+  // ── Territorien ────────────────────────────────────────────────────────────
+  let aktiveTeritoriumRow = null;
+
+  document.querySelectorAll('.bearbeiten-territorium').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const d = this.dataset;
+      document.getElementById('t-name').value = d.name;
+      document.getElementById('t-beschreibung').value = d.beschreibung || '';
+      document.getElementById('territorium-form').action = `/admin/territorium/${d.id}/bearbeiten`;
+      document.getElementById('territorium-submit-btn').textContent = '✓ Speichern';
+      document.getElementById('territorium-abbrechen-btn').style.display = 'inline-flex';
+      document.getElementById('territorium-form-title').textContent = 'Territorium bearbeiten';
+      document.getElementById('territorium-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (aktiveTeritoriumRow) aktiveTeritoriumRow.classList.remove('active-row');
+      aktiveTeritoriumRow = document.getElementById('row-t' + d.id);
+      if (aktiveTeritoriumRow) aktiveTeritoriumRow.classList.add('active-row');
+    });
+  });
+
+  window.territoriumAbbrechen = function() {
+    document.getElementById('territorium-form').reset();
+    document.getElementById('territorium-form').action = '/admin/territorium/neu';
+    document.getElementById('territorium-submit-btn').textContent = '+ Territorium anlegen';
+    document.getElementById('territorium-abbrechen-btn').style.display = 'none';
+    document.getElementById('territorium-form-title').textContent = 'Territorium anlegen';
+    if (aktiveTeritoriumRow) { aktiveTeritoriumRow.classList.remove('active-row'); aktiveTeritoriumRow = null; }
+  };
+
+
+  // ── Alarmierungsplan ─────────────────────────────────────────────────────────────
+  let aktiveEpRow = null;
+
+  window.loadStichworte = async function(atId, selectedId = '') {
+    const sel = document.getElementById('ep-stichwort');
+    sel.innerHTML = '<option value="">— keines —</option>';
+    if (!atId) return;
+    const res = await fetch(`/api/alarmierungstyp/${atId}/stichworte`);
+    const data = await res.json();
+    data.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.text;
+      if (String(s.id) === String(selectedId)) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  };
+
+  document.querySelectorAll('.bearbeiten-ep').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const d = this.dataset;
+      document.getElementById('ep-alarmierungstyp').value = d.alarmierungstyp;
+      await loadStichworte(d.alarmierungstyp, d.stichwort);
+      document.getElementById('ep-territorium').value = d.territorium || '';
+      document.getElementById('ep-standard').checked = d.standard === 'true';
+      const fids = d.fahrzeuge ? d.fahrzeuge.split(',').map(Number).filter(Boolean) : [];
+      document.querySelectorAll('#ep-fahrzeuge input[type="checkbox"]').forEach(cb => {
+        cb.checked = fids.includes(parseInt(cb.dataset.fid));
+      });
+      document.getElementById('ep-form').action = `/admin/alarmierungsplan/${d.id}/bearbeiten`;
+      document.getElementById('ep-submit-btn').textContent = '✓ Speichern';
+      document.getElementById('ep-abbrechen-btn').style.display = 'inline-flex';
+      document.getElementById('ep-form-title').textContent = 'Alarmierungsplan bearbeiten';
+      document.getElementById('ep-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (aktiveEpRow) aktiveEpRow.classList.remove('active-row');
+      aktiveEpRow = document.getElementById('row-ep' + d.id);
+      if (aktiveEpRow) aktiveEpRow.classList.add('active-row');
+    });
+  });
+
+  window.epAbbrechen = function() {
+    document.getElementById('ep-form').reset();
+    document.getElementById('ep-stichwort').innerHTML = '<option value="">— keines —</option>';
+    document.getElementById('ep-form').action = '/admin/alarmierungsplan/neu';
+    document.getElementById('ep-submit-btn').textContent = '+ Alarmierungsplan anlegen';
+    document.getElementById('ep-abbrechen-btn').style.display = 'none';
+    document.getElementById('ep-form-title').textContent = 'Alarmierungsplan anlegen';
+    document.querySelectorAll('#ep-fahrzeuge input[type="checkbox"]').forEach(cb => cb.checked = false);
+    if (aktiveEpRow) { aktiveEpRow.classList.remove('active-row'); aktiveEpRow = null; }
   };
 
 });

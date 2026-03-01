@@ -36,16 +36,21 @@
   #save-indicator.saved { display: inline-block; color: var(--green); background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); }
 
   main { display: flex; min-height: calc(100vh - 64px); }
-  .sidebar { width: 340px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .sidebar { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
   .sidebar-header { padding: 1.25rem 1.5rem 1rem; border-bottom: 1px solid var(--border); }
   .sidebar-label { font-family: 'Barlow Condensed', sans-serif; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--red); margin-bottom: 0.25rem; }
   .sidebar-title { font-family: 'Barlow Condensed', sans-serif; font-size: 1.1rem; font-weight: 700; }
-  .schlagwort-list { flex: 1; overflow-y: auto; padding: 0.75rem; }
-  .schlagwort-btn { display: block; width: 100%; padding: 0.75rem 1rem; margin-bottom: 0.25rem; background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--text); text-align: left; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.15s; text-decoration: none; }
-  .schlagwort-btn:hover { background: var(--surface2); border-color: var(--border); }
-  .schlagwort-btn.active { background: rgba(232,24,11,0.12); border-color: var(--red); color: #FF6B60; }
-  .schlagwort-btn .sw-code { display: block; font-size: 0.7rem; color: var(--muted); font-weight: 400; margin-top: 2px; }
+  .alarmierungstyp-list { flex: 1; overflow-y: auto; padding: 0.75rem; }
+  .alarmierungstyp-btn { display: block; width: 100%; padding: 0.75rem 1rem; margin-bottom: 0.25rem; background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--text); text-align: left; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.15s; text-decoration: none; }
+  .alarmierungstyp-btn:hover { background: var(--surface2); border-color: var(--border); }
+  alarmierungstyp-btn.active { background: rgba(232,24,11,0.12); border-color: var(--red); color: #FF6B60; }
+  .alarmierungstyp-btn .at-code { display: block; font-size: 0.7rem; color: var(--muted); font-weight: 400; margin-top: 2px; }
   .empty-hint { padding: 2rem 1.5rem; color: var(--muted); font-size: 0.85rem; text-align: center; line-height: 1.6; }
+  .warnung-list { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  .warnung-item { display: flex; align-items: flex-start; gap: 0.6rem; background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.3); border-radius: 6px; padding: 0.55rem 0.75rem; font-size: 0.83rem; }
+  .warnung-item .wi-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+  .warnung-item .wi-text strong { display: block; font-weight: 700; color: #FCD34D; }
+  .warnung-item .wi-text span { color: var(--muted); }
 
   .content { flex: 1; padding: 2rem 2.5rem; overflow-y: auto; }
   .alarm-header { margin-bottom: 1.25rem; }
@@ -107,11 +112,6 @@
   .count-info span { display: flex; align-items: center; gap: 5px; }
   .count-info strong { color: var(--text); }
 
-  .warnungen { margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
-  .warnung { display: flex; align-items: flex-start; gap: 10px; padding: 0.7rem 1rem; background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.35); border-radius: 8px; font-size: 0.82rem; }
-  .warnung-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
-  .warnung-text strong { color: #FCD34D; display: block; margin-bottom: 2px; }
-  .warnung-text span { color: var(--muted); }
 
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -124,7 +124,7 @@
   data-alarm-aktiv="{{ '1' if aktiver_alarm else '0' }}"
   style="display:none"></div>
 
-{% macro fahrzeug_card(f, schlagwort_ids) %}
+{% macro fahrzeug_card(f, alarmierungstyp_ids) %}
 <div class="fahrzeug-card status-{{ f.status }}"
      data-id="{{ f.id }}"
      data-status="{{ f.status }}"
@@ -166,54 +166,59 @@
 <main>
   <aside class="sidebar">
     <div class="sidebar-header">
-      <div class="sidebar-label">Schlagworte</div>
-      <div class="sidebar-title">Alarmstichwort wählen</div>
+      <div class="sidebar-label">Alarmierungstypen</div>
+      <div class="sidebar-title">Alarmierungstyp wählen</div>
     </div>
-    <div class="schlagwort-list">
-      {% if schlagworte %}
-        {% for sw in schlagworte %}
-        {% set is_active = aktives_schlagwort is defined and aktives_schlagwort.id == sw.id %}
+    <div class="alarmierungstyp-list">
+      {% if alarmierungstypen %}
+        {% for sw in alarmierungstypen %}
+        {% set is_active = aktiver_alarmierungstyp is defined and aktiver_alarmierungstyp.id == sw.id %}
         {% set is_blocked = aktiver_alarm and not is_active %}
-        <a href="{% if is_blocked %}#{% else %}/alarm/{{ sw.id }}{% endif %}"
-           class="schlagwort-btn {% if is_active %}active{% elif is_blocked %}disabled{% endif %}">
+        <button
+           data-atid="{{ sw.id }}" data-atname="{{ sw.name | e }}"
+           class="alarmierungstyp-btn {% if is_active %}active{% elif is_blocked %}disabled{% endif %}"
+           {% if is_blocked or is_active %}disabled{% endif %}>
           {{ sw.name }}
           {% if sw.beschreibung %}<span class="sw-code">{{ sw.beschreibung }}</span>{% endif %}
-        </a>
+        </button>
         {% endfor %}
       {% else %}
-        <div class="empty-hint">Noch keine Schlagworte angelegt.</div>
+        <div class="empty-hint">Noch keine Alarmierungstypen angelegt.</div>
       {% endif %}
     </div>
   </aside>
 
   <div class="content">
-    {% if aktives_schlagwort is defined %}
+    {% if aktiver_alarmierungstyp is defined %}
       <div class="alarm-header">
         <div class="alarm-badge"><span style="width:6px;height:6px;border-radius:50%;background:white;display:inline-block;margin-right:2px"></span>Alarm ausgelöst</div>
-        <h1 class="alarm-title">{{ aktives_schlagwort.name }}</h1>
-        {% if aktives_schlagwort.beschreibung %}<p class="alarm-desc">{{ aktives_schlagwort.beschreibung }}</p>{% endif %}
+        <h1 class="alarm-title">{{ aktiver_alarmierungstyp.name }}</h1>
+        {% if aktiver_alarmierungstyp.beschreibung %}<p class="alarm-desc">{{ aktiver_alarmierungstyp.beschreibung }}</p>{% endif %}
+        {% if aktiver_alarm and (aktiver_alarm.stichwort or aktiver_alarm.territorium) %}
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.6rem">
+          {% if aktiver_alarm.stichwort %}
+          <span style="padding:0.2rem 0.65rem;border-radius:4px;background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.35);color:#C4B5FD;font-size:0.8rem;font-weight:700;letter-spacing:0.04em">{{ aktiver_alarm.stichwort.text }}</span>
+          {% endif %}
+          {% if aktiver_alarm.territorium %}
+          <span style="padding:0.2rem 0.65rem;border-radius:4px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.35);color:#93C5FD;font-size:0.8rem;font-weight:700;letter-spacing:0.04em">{{ aktiver_alarm.territorium.name }}</span>
+          {% endif %}
+        </div>
+        {% endif %}
       </div>
     {% else %}
       <div class="alarm-header">
         <div class="sidebar-label" style="color:var(--muted);margin-bottom:0.3rem">Übersicht</div>
         <h1 class="alarm-title" style="font-size:1.8rem;color:var(--muted)">Alle Fahrzeuge</h1>
-        <p style="color:var(--muted);font-size:0.85rem;margin-top:0.3rem">Kein Alarm aktiv — Schlagwort auswählen.</p>
+        <p style="color:var(--muted);font-size:0.85rem;margin-top:0.3rem">Kein Alarm aktiv — Alarmierungstyp auswählen.</p>
       </div>
     {% endif %}
 
-    <div class="count-info" id="count-info">
-      <span>Gesamt: <strong>{{ alle_fahrzeuge|length }}</strong></span>
-      <span style="color:#22C55E">● Alarmiert: <strong id="cnt-alarmiert">{{ alle_fahrzeuge|selectattr("status","equalto","alarmiert")|list|length }}</strong></span>
-      <span style="color:#EAB308">● Bereitschaft: <strong id="cnt-bereitschaft">{{ alle_fahrzeuge|selectattr("status","equalto","bereitschaft")|list|length }}</strong></span>
-      <span style="color:#FF6B60">● Nicht einsatzbereit: <strong id="cnt-nicht">{{ alle_fahrzeuge|selectattr("status","equalto","nicht_einsatzbereit")|list|length }}</strong></span>
-    </div>
-
-{% if warnungen %}
-    <div class="warnungen">
+    {% if warnungen %}
+    <div class="warnung-list" style="margin-bottom:1rem;margin-top:0">
       {% for w in warnungen %}
-      <div class="warnung">
-        <span class="warnung-icon">⚠️</span>
-        <div class="warnung-text">
+      <div class="warnung-item">
+        <span class="wi-icon">⚠️</span>
+        <div class="wi-text">
           <strong>{{ w.fahrzeug }}</strong>
           <span>{{ w.grund }}</span>
         </div>
@@ -221,6 +226,12 @@
       {% endfor %}
     </div>
     {% endif %}
+    <div class="count-info" id="count-info">
+      <span>Gesamt: <strong>{{ alle_fahrzeuge|length }}</strong></span>
+      <span style="color:#22C55E">● Alarmiert: <strong id="cnt-alarmiert">{{ alle_fahrzeuge|selectattr("status","equalto","alarmiert")|list|length }}</strong></span>
+      <span style="color:#EAB308">● Bereitschaft: <strong id="cnt-bereitschaft">{{ alle_fahrzeuge|selectattr("status","equalto","bereitschaft")|list|length }}</strong></span>
+      <span style="color:#FF6B60">● Nicht einsatzbereit: <strong id="cnt-nicht">{{ alle_fahrzeuge|selectattr("status","equalto","nicht_einsatzbereit")|list|length }}</strong></span>
+    </div>
 
     {% set ns = namespace(ohne_gruppe=[]) %}
     {% for f in alle_fahrzeuge %}{% if not f.gruppe_id %}{% set ns.ohne_gruppe = ns.ohne_gruppe + [f] %}{% endif %}{% endfor %}
@@ -234,7 +245,7 @@
           <span class="gruppe-count">{{ gf|length }}</span>
         </div>
         <div class="fahrzeug-grid" data-gruppe="{{ gruppe.id }}">
-          {% for f in gf %}{{ fahrzeug_card(f, schlagwort_fahrzeug_ids) }}{% endfor %}
+          {% for f in gf %}{{ fahrzeug_card(f, alarmierungstyp_fahrzeug_ids) }}{% endfor %}
         </div>
       </div>
       {% endif %}
@@ -244,12 +255,12 @@
     <div class="gruppe-section">
       {% if gruppen %}
       <div class="gruppe-header">
-        <span class="gruppe-label" style="color:var(--muted)">Ohne Gruppe</span>
+        <span class="gruppe-label" style="color:var(--muted)">Ohne Fahrzeuggruppe</span>
         <span class="gruppe-count">{{ ns.ohne_gruppe|length }}</span>
       </div>
       {% endif %}
       <div class="fahrzeug-grid" data-gruppe="none">
-        {% for f in ns.ohne_gruppe %}{{ fahrzeug_card(f, schlagwort_fahrzeug_ids) }}{% endfor %}
+        {% for f in ns.ohne_gruppe %}{{ fahrzeug_card(f, alarmierungstyp_fahrzeug_ids) }}{% endfor %}
       </div>
     </div>
     {% endif %}
@@ -352,5 +363,247 @@ function saveOrder() {
   });
 }
 </script>
+
+<!-- ── Alarmierungsplan-Auswahl Modal ──────────────────────────────────────────── -->
+<div id="ep-modal" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.75);display:none;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:2rem;width:420px;max-width:90vw;box-shadow:0 24px 80px rgba(0,0,0,0.6)">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:900;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem">Einsatz alarmieren</div>
+    <div id="ep-modal-atname" style="color:var(--red);font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:1.5rem"></div>
+
+    <div id="ep-territorium-section" style="display:none;margin-bottom:1.25rem">
+      <label style="display:block;font-size:0.72rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem">Territorium</label>
+      <div id="ep-territorium-opts" style="display:flex;flex-direction:column;gap:0.4rem"></div>
+    </div>
+
+    <div id="ep-stichwort-section" style="display:none;margin-bottom:1.5rem">
+      <label style="display:block;font-size:0.72rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem">Alarmierungsstichwort</label>
+      <div id="ep-stichwort-opts" style="display:flex;flex-direction:column;gap:0.4rem"></div>
+    </div>
+
+    <div id="ep-warnungen" style="display:none;margin-bottom:1rem"></div>
+
+    <div id="ep-fahrzeuge-preview" style="margin-bottom:1.5rem">
+      <label style="display:block;font-size:0.72rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem">Fahrzeuge</label>
+      <div id="ep-fahrzeuge-list" style="display:flex;flex-wrap:wrap;gap:0.4rem"></div>
+    </div>
+
+    <div style="display:flex;gap:0.75rem;justify-content:flex-end">
+      <button onclick="epModalAbbrechen()" style="padding:0.6rem 1.25rem;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:0.88rem;font-weight:600;cursor:pointer">✕ Abbrechen</button>
+      <button id="ep-alarmieren-btn" onclick="epAlarmieren()" style="padding:0.6rem 1.5rem;border-radius:6px;border:none;background:var(--red);color:white;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer">🔔 Alarmieren</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Alarmierungstyp-Button Delegation ───────────────────────────────────────
+document.querySelector('.alarmierungstyp-list').addEventListener('click', function(e) {
+  const btn = e.target.closest('.alarmierungstyp-btn:not([disabled])');
+  if (!btn || !btn.dataset.atid) return;
+  handleAlarmierungstyp(parseInt(btn.dataset.atid), btn.dataset.atname);
+});
+
+// ── Alarmierungsplan Modal ────────────────────────────────────────────────────────
+let epPlaene = [];
+let epSelectedPlan = null;
+let epCurrentAtId = null;
+let epCountdownTimer = null;
+let epCountdownSek = 10;
+
+function epStartCountdown() {
+  epStopCountdown();
+  epCountdownSek = 10;
+  updateCountdownBtn();
+  epCountdownTimer = setInterval(() => {
+    epCountdownSek--;
+    updateCountdownBtn();
+    if (epCountdownSek <= 0) {
+      epStopCountdown();
+      epAlarmieren();
+    }
+  }, 1000);
+}
+
+function epStopCountdown() {
+  if (epCountdownTimer) { clearInterval(epCountdownTimer); epCountdownTimer = null; }
+}
+
+function updateCountdownBtn() {
+  const btn = document.getElementById('ep-alarmieren-btn');
+  if (btn) btn.textContent = `🔔 Alarmieren (${epCountdownSek})`;
+}
+
+async function handleAlarmierungstyp(atId, atName) {
+  const res = await fetch(`/api/alarmierungstyp/${atId}/einsatzplaene`);
+  const plaene = await res.json();
+  epCurrentAtId = atId;
+
+  if (plaene.length === 0) {
+    window.location.href = `/alarm/${atId}`;
+    return;
+  }
+  if (plaene.length === 1) {
+    await startenDirekt(atId, plaene[0].id);
+    return;
+  }
+
+  epPlaene = plaene;
+  const standard = plaene.find(p => p.ist_standard) || plaene[0];
+  epSelectedPlan = standard;
+
+  document.getElementById('ep-modal-atname').textContent = atName;
+
+  // Territorien
+  const territorien = [...new Map(plaene.filter(p => p.territorium).map(p => [p.territorium.id, p.territorium])).values()];
+  const terrSec = document.getElementById('ep-territorium-section');
+  const terrOpts = document.getElementById('ep-territorium-opts');
+  terrOpts.innerHTML = '';
+  if (territorien.length > 1) {
+    terrSec.style.display = 'block';
+    territorien.forEach(t => {
+      const btn = document.createElement('button');
+      btn.dataset.tid = t.id;
+      btn.textContent = t.name;
+      btn.onclick = () => selectTerritorium(t.id);
+      btn.style.cssText = 'padding:0.5rem 0.9rem;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:0.88rem;font-weight:600;cursor:pointer;text-align:left;transition:all 0.15s';
+      terrOpts.appendChild(btn);
+    });
+  } else {
+    terrSec.style.display = 'none';
+  }
+
+  // Stichworte
+  const stichworte = [...new Map(plaene.filter(p => p.stichwort).map(p => [p.stichwort.id, p.stichwort])).values()];
+  const swSec = document.getElementById('ep-stichwort-section');
+  const swOpts = document.getElementById('ep-stichwort-opts');
+  swOpts.innerHTML = '';
+  if (stichworte.length > 1) {
+    swSec.style.display = 'block';
+    if (plaene.some(p => !p.stichwort)) {
+      const btn = document.createElement('button');
+      btn.dataset.swid = '';
+      btn.textContent = '— kein Stichwort';
+      btn.onclick = () => selectStichwort(null);
+      btn.style.cssText = 'padding:0.5rem 0.9rem;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:0.88rem;font-weight:600;cursor:pointer;text-align:left;transition:all 0.15s';
+      swOpts.appendChild(btn);
+    }
+    stichworte.forEach(s => {
+      const btn = document.createElement('button');
+      btn.dataset.swid = s.id;
+      btn.textContent = s.text;
+      btn.onclick = () => selectStichwort(s.id);
+      btn.style.cssText = 'padding:0.5rem 0.9rem;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:0.88rem;font-weight:600;cursor:pointer;text-align:left;transition:all 0.15s';
+      swOpts.appendChild(btn);
+    });
+  } else {
+    swSec.style.display = 'none';
+  }
+
+  renderEpModal(standard);
+  document.getElementById('ep-modal').style.display = 'flex';
+  epStartCountdown();
+}
+
+function selectTerritorium(tid) {
+  const swId = epSelectedPlan && epSelectedPlan.stichwort ? epSelectedPlan.stichwort.id : null;
+  const match = epPlaene.find(p =>
+    (p.territorium ? p.territorium.id : null) === tid &&
+    (p.stichwort ? p.stichwort.id : null) === swId
+  ) || epPlaene.find(p => (p.territorium ? p.territorium.id : null) === tid);
+  if (match) { renderEpModal(match); epStartCountdown(); }
+}
+
+function selectStichwort(swid) {
+  const tid = epSelectedPlan && epSelectedPlan.territorium ? epSelectedPlan.territorium.id : null;
+  const match = epPlaene.find(p =>
+    (p.territorium ? p.territorium.id : null) === tid &&
+    (p.stichwort ? p.stichwort.id : null) === swid
+  ) || epPlaene.find(p => (p.stichwort ? p.stichwort.id : null) === swid);
+  if (match) { renderEpModal(match); epStartCountdown(); }
+}
+
+function renderEpModal(plan) {
+  epSelectedPlan = plan;
+
+  document.querySelectorAll('#ep-territorium-opts button').forEach(btn => {
+    const active = plan.territorium && String(btn.dataset.tid) === String(plan.territorium.id);
+    btn.style.background = active ? 'rgba(232,24,11,0.12)' : 'transparent';
+    btn.style.borderColor = active ? 'var(--red)' : 'var(--border)';
+    btn.style.color = active ? '#FF6B60' : 'var(--text)';
+  });
+
+  document.querySelectorAll('#ep-stichwort-opts button').forEach(btn => {
+    const swid = btn.dataset.swid === '' ? null : parseInt(btn.dataset.swid);
+    const active = (plan.stichwort ? plan.stichwort.id : null) === swid;
+    btn.style.background = active ? 'rgba(139,92,246,0.12)' : 'transparent';
+    btn.style.borderColor = active ? 'rgba(139,92,246,0.5)' : 'var(--border)';
+    btn.style.color = active ? '#C4B5FD' : (btn.dataset.swid === '' ? 'var(--muted)' : 'var(--text)');
+  });
+
+  // Warnungen sofort anzeigen
+  zeigeModalWarnungen(plan.warnungen || []);
+
+  const fl = document.getElementById('ep-fahrzeuge-list');
+  fl.innerHTML = '';
+  if (plan.fahrzeuge.length === 0) {
+    fl.innerHTML = '<span style="color:var(--muted);font-size:0.85rem">Keine Fahrzeuge hinterlegt</span>';
+  } else {
+    plan.fahrzeuge.forEach(f => {
+      const tag = document.createElement('span');
+      tag.textContent = f.name;
+      tag.style.cssText = 'padding:0.25rem 0.6rem;border-radius:4px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);color:#86EFAC;font-size:0.8rem;font-weight:600';
+      fl.appendChild(tag);
+    });
+  }
+}
+
+async function startenDirekt(atId, epId) {
+  const res = await fetch('/api/alarm/starten', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ alarmierungstyp_id: atId, alarmierungsplan_id: epId }),
+  });
+  if (res.ok) {
+    window.location.href = `/alarm/${atId}`;
+  }
+}
+
+function zeigeModalWarnungen(warnungen) {
+  const el = document.getElementById('ep-warnungen');
+  if (!warnungen || warnungen.length === 0) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = warnungen.map(w => `
+    <div style="display:flex;align-items:flex-start;gap:0.6rem;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.3);border-radius:6px;padding:0.5rem 0.7rem;font-size:0.82rem;margin-bottom:0.35rem">
+      <span style="flex-shrink:0;margin-top:1px">⚠️</span>
+      <div><strong style="display:block;color:#FCD34D">${w.fahrzeug}</strong><span style="color:#9CA3AF">${w.grund}</span></div>
+    </div>`).join('');
+}
+
+async function epAlarmieren() {
+  if (!epSelectedPlan) return;
+  epStopCountdown();
+  const res = await fetch('/api/alarm/starten', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ alarmierungstyp_id: epCurrentAtId, alarmierungsplan_id: epSelectedPlan.id }),
+  });
+  if (res.ok) {
+    document.getElementById('ep-modal').style.display = 'none';
+    window.location.href = `/alarm/${epCurrentAtId}`;
+  }
+}
+
+function epModalAbbrechen() {
+  epStopCountdown();
+  document.getElementById('ep-modal').style.display = 'none';
+  epPlaene = [];
+  epSelectedPlan = null;
+  epCurrentAtId = null;
+}
+
+document.getElementById('ep-modal').addEventListener('click', function(e) {
+  if (e.target === this) epModalAbbrechen();
+});
+</script>
+
 </body>
 </html>

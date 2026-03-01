@@ -91,6 +91,17 @@
 <script>
 const STATUS_LABEL = { alarmiert: 'Alarmiert', bereitschaft: 'Bereitschaft' };
 
+function renderWarnungen(warnungen) {
+  if (!warnungen || warnungen.length === 0) return '';
+  return '<div style="margin-top:0.75rem;display:flex;flex-direction:column;gap:0.35rem">' +
+    warnungen.map(w =>
+      '<div style="display:flex;align-items:flex-start;gap:0.5rem;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.3);border-radius:6px;padding:0.45rem 0.65rem;font-size:0.8rem">' +
+      '<span>⚠️</span>' +
+      '<div><strong style="display:block;color:#FCD34D;font-size:0.82rem">' + w.fahrzeug + '</strong>' +
+      '<span style="color:#9CA3AF">' + w.grund + '</span></div></div>'
+    ).join('') + '</div>';
+}
+
 function render(data) {
   const el = document.getElementById('content');
   if (!data.alarm) {
@@ -103,13 +114,18 @@ function render(data) {
     return;
   }
 
-  const { alarm, gruppen, gesamt } = data;
+  const { alarm, gruppen, gesamt, warnungen } = data;
   let html = `
     <div id="alarm-info">
       <div class="alarm-badge"><span style="width:6px;height:6px;border-radius:50%;background:white;display:inline-block;margin-right:4px"></span>Alarm aktiv</div>
-      <div class="alarm-title">${alarm.schlagwort || 'Alarm'}</div>
+      <div class="alarm-title">${alarm.alarmierungstyp || 'Alarm'}</div>
       ${alarm.beschreibung ? `<div class="alarm-meta">${alarm.beschreibung}</div>` : ''}
+      ${(alarm.stichwort || alarm.territorium) ? `<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem">
+        ${alarm.stichwort ? `<span style="padding:0.2rem 0.65rem;border-radius:4px;background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.35);color:#C4B5FD;font-size:0.8rem;font-weight:700">${alarm.stichwort}</span>` : ''}
+        ${alarm.territorium ? `<span style="padding:0.2rem 0.65rem;border-radius:4px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.35);color:#93C5FD;font-size:0.8rem;font-weight:700">${alarm.territorium}</span>` : ''}
+      </div>` : ''}
       <div class="alarm-meta" style="margin-top:4px">Alarmiert: ${alarm.erstellt_am || ''} · ${gesamt} Fahrzeug${gesamt !== 1 ? 'e' : ''}</div>
+      ${renderWarnungen(warnungen)}
     </div>`;
 
   for (const gruppe of gruppen) {
