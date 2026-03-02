@@ -452,10 +452,10 @@ def fahrzeug_neu(
     f.ersatzfahrzeuge = db.query(Fahrzeug).filter(Fahrzeug.id.in_(ersatz_ids)).all()
     db.add(f)
     db.commit()
-    return RedirectResponse("/admin/fahrzeuge", status_code=303)
+    return {"ok": True}
 
 
-@app.post("/admin/fahrzeug/{fid}/bearbeiten")
+@app.put("/admin/fahrzeug/{fid}")
 def fahrzeug_bearbeiten(
     fid: int, name: str = Form(...), kennzeichen: str = Form(""), funkkennung: str = Form(""),
     typ: str = Form(...), gruppe_id: Optional[int] = Form(None),
@@ -471,16 +471,16 @@ def fahrzeug_bearbeiten(
     f.gruppe_id   = gruppe_id
     f.ersatzfahrzeuge = db.query(Fahrzeug).filter(Fahrzeug.id.in_(ersatz_ids)).all()
     db.commit()
-    return RedirectResponse("/admin/fahrzeuge", status_code=303)
+    return {"ok": True}
 
 
-@app.post("/admin/fahrzeug/{fid}/loeschen")
+@app.delete("/admin/fahrzeug/{fid}")
 def fahrzeug_loeschen(fid: int, db: Session = Depends(get_db)):
     f = db.get(Fahrzeug, fid)
     if f:
         db.delete(f)
         db.commit()
-    return RedirectResponse("/admin/fahrzeuge", status_code=303)
+    return {"ok": True}
 
 
 # ─── Admin: Fahrzeuggruppen ───────────────────────────────────────────────────
@@ -494,26 +494,26 @@ def admin_gruppen(request: Request, db: Session = Depends(get_db)):
 def gruppe_neu(name: str = Form(...), db: Session = Depends(get_db)):
     db.add(FahrzeugGruppe(name=name))
     db.commit()
-    return RedirectResponse("/admin/gruppen", status_code=303)
+    return {"ok": True}
 
 
-@app.post("/admin/gruppe/{gid}/bearbeiten")
+@app.put("/admin/gruppe/{gid}")
 def gruppe_bearbeiten(gid: int, name: str = Form(...), db: Session = Depends(get_db)):
     g = db.get(FahrzeugGruppe, gid)
     if not g:
         raise HTTPException(status_code=404)
     g.name = name
     db.commit()
-    return RedirectResponse("/admin/gruppen", status_code=303)
+    return {"ok": True}
 
 
-@app.post("/admin/gruppe/{gid}/loeschen")
+@app.delete("/admin/gruppe/{gid}")
 def gruppe_loeschen(gid: int, db: Session = Depends(get_db)):
     g = db.get(FahrzeugGruppe, gid)
     if g:
         db.delete(g)
         db.commit()
-    return RedirectResponse("/admin/gruppen", status_code=303)
+    return {"ok": True}
 
 
 # ─── Admin: Territorien ───────────────────────────────────────────────────────
@@ -527,10 +527,10 @@ def admin_territorien(request: Request, db: Session = Depends(get_db)):
 def territorium_neu(name: str = Form(...), beschreibung: str = Form(""), db: Session = Depends(get_db)):
     db.add(Territorium(name=name, beschreibung=beschreibung or None))
     db.commit()
-    return RedirectResponse("/admin/territorien", status_code=303)
+    return {"ok": True}
 
 
-@app.post("/admin/territorium/{tid}/bearbeiten")
+@app.put("/admin/territorium/{tid}")
 def territorium_bearbeiten(tid: int, name: str = Form(...), beschreibung: str = Form(""), db: Session = Depends(get_db)):
     t = db.get(Territorium, tid)
     if not t:
@@ -538,16 +538,16 @@ def territorium_bearbeiten(tid: int, name: str = Form(...), beschreibung: str = 
     t.name         = name
     t.beschreibung = beschreibung or None
     db.commit()
-    return RedirectResponse("/admin/territorien", status_code=303)
+    return {"ok": True}
 
 
-@app.post("/admin/territorium/{tid}/loeschen")
+@app.delete("/admin/territorium/{tid}")
 def territorium_loeschen(tid: int, db: Session = Depends(get_db)):
     t = db.get(Territorium, tid)
     if t:
         db.delete(t)
         db.commit()
-    return RedirectResponse("/admin/territorien", status_code=303)
+    return {"ok": True}
 
 
 # ─── Admin: Alarmierungsplan ───────────────────────────────────────────────────────
@@ -588,10 +588,10 @@ def alarmierungsplan_neu(
     ep.fahrzeuge = db.query(Fahrzeug).filter(Fahrzeug.id.in_(fahrzeug_ids)).all()
     db.add(ep)
     db.commit()
-    return RedirectResponse("/admin/alarmierungsplaene", status_code=303)
+    return {"ok": True}
 
 
-@app.post("/admin/alarmierungsplan/{epid}/bearbeiten")
+@app.put("/admin/alarmierungsplan/{epid}")
 def alarmierungsplan_bearbeiten(
     epid: int,
     alarmierungstyp_id: int = Form(...),
@@ -625,16 +625,16 @@ def alarmierungsplan_bearbeiten(
     ep.ist_standard       = ist_standard
     ep.fahrzeuge          = db.query(Fahrzeug).filter(Fahrzeug.id.in_(fahrzeug_ids)).all()
     db.commit()
-    return RedirectResponse("/admin/alarmierungsplaene", status_code=303)
+    return {"ok": True}
 
 
-@app.post("/admin/alarmierungsplan/{epid}/loeschen")
+@app.delete("/admin/alarmierungsplan/{epid}")
 def alarmierungsplan_loeschen(epid: int, db: Session = Depends(get_db)):
     ep = db.get(Alarmierungsplan, epid)
     if ep:
         db.delete(ep)
         db.commit()
-    return RedirectResponse("/admin/alarmierungsplaene", status_code=303)
+    return {"ok": True}
 
 
 @app.get("/api/alarmierungstyp/{atid}/stichworte", response_class=JSONResponse)
@@ -664,10 +664,10 @@ def alarmierungstyp_neu(
     for zeile in [z.strip() for z in stichworte.split("\n") if z.strip()]:
         db.add(Alarmierungsstichwort(text=zeile, alarmierungstyp_id=at.id))
     db.commit()
-    return RedirectResponse("/admin/alarmierungstypen", status_code=303)
+    return {"ok": True}
 
 
-@app.post("/admin/alarmierungstyp/{atid}/bearbeiten")
+@app.put("/admin/alarmierungstyp/{atid}")
 def alarmierungstyp_bearbeiten(
     atid: int, name: str = Form(...), beschreibung: str = Form(""),
     stichworte: str = Form(""),
@@ -682,13 +682,13 @@ def alarmierungstyp_bearbeiten(
     for zeile in [z.strip() for z in stichworte.split("\n") if z.strip()]:
         db.add(Alarmierungsstichwort(text=zeile, alarmierungstyp_id=at.id))
     db.commit()
-    return RedirectResponse("/admin/alarmierungstypen", status_code=303)
+    return {"ok": True}
 
 
-@app.post("/admin/alarmierungstyp/{atid}/loeschen")
+@app.delete("/admin/alarmierungstyp/{atid}")
 def alarmierungstyp_loeschen(atid: int, db: Session = Depends(get_db)):
     at = db.get(Alarmierungstyp, atid)
     if at:
         db.delete(at)
         db.commit()
-    return RedirectResponse("/admin/alarmierungstypen", status_code=303)
+    return {"ok": True}

@@ -127,7 +127,7 @@
         <span id="fahrzeug-form-title">Fahrzeug anlegen</span>
       </div>
       <div class="card-body">
-        <form id="fahrzeug-form" method="post" action="/admin/fahrzeug/neu">
+        <form id="fahrzeug-form" method="post" action="/admin/fahrzeug/neu" onsubmit="return restSubmit(event, 'fahrzeug-form', '/admin/fahrzeug')">
           <div class="form-row">
             <div>
               <label>Fahrzeugname</label>
@@ -215,7 +215,7 @@
                   data-gruppe="{{ f.gruppe_id or '' }}"
                   data-ersatz="{% for e in f.ersatzfahrzeuge %}{{ e.id }}{% if not loop.last %},{% endif %}{% endfor %}"
                  title="Bearbeiten">✏️</button>
-                <form method="post" action="/admin/fahrzeug/{{ f.id }}/loeschen" onsubmit="return confirm('Fahrzeug löschen?')">
+                <form onsubmit="return restDelete(event, '/admin/fahrzeug/{{ f.id }}', 'Fahrzeug löschen?')">
                   <button type="submit" class="btn btn-danger" title="Löschen">🗑️</button>
                 </form>
               </div>
@@ -242,7 +242,7 @@
         <span id="gruppe-form-title">Fahrzeuggruppe anlegen</span>
       </div>
       <div class="card-body">
-        <form id="gruppe-form" method="post" action="/admin/gruppe/neu">
+        <form id="gruppe-form" method="post" action="/admin/gruppe/neu" onsubmit="return restSubmit(event, 'gruppe-form', '/admin/gruppe')">
           <label>Fahrzeuggruppenname</label>
           <input type="text" id="g-name" name="name" placeholder="z.B. Löschzug, Hilfeleistung" required>
           <div class="form-actions">
@@ -282,7 +282,7 @@
                   data-id="{{ g.id }}"
                   data-name="{{ g.name | e }}"
                  title="Bearbeiten">✏️</button>
-                <form method="post" action="/admin/gruppe/{{ g.id }}/loeschen" onsubmit="return confirm('Fahrzeuggruppe löschen?')">
+                <form onsubmit="return restDelete(event, '/admin/gruppe/{{ g.id }}', 'Fahrzeuggruppe löschen?')">
                   <button type="submit" class="btn btn-danger" title="Löschen">🗑️</button>
                 </form>
               </div>
@@ -309,7 +309,7 @@
         <span id="at-form-title">Alarmierungstyp anlegen</span>
       </div>
       <div class="card-body">
-        <form id="at-form" method="post" action="/admin/alarmierungstyp/neu">
+        <form id="at-form" method="post" action="/admin/alarmierungstyp/neu" onsubmit="return restSubmit(event, 'at-form', '/admin/alarmierungstyp')">
           <label>Name</label>
           <input type="text" id="at-name" name="name" placeholder="z.B. BRAND Gebäude" required>
           <label>Beschreibung (optional)</label>
@@ -356,7 +356,7 @@
                   data-stichworte="{{ sw.alarmierungsstichworte | map(attribute='text') | join('
 ') | e }}"
                  title="Bearbeiten">✏️</button>
-                <form method="post" action="/admin/alarmierungstyp/{{ sw.id }}/loeschen" onsubmit="return confirm('Alarmierungstyp löschen?')">
+                <form onsubmit="return restDelete(event, '/admin/alarmierungstyp/{{ sw.id }}', 'Alarmierungstyp löschen?')">
                   <button type="submit" class="btn btn-danger" title="Löschen">🗑️</button>
                 </form>
               </div>
@@ -383,7 +383,7 @@
         <span id="territorium-form-title">Territorium anlegen</span>
       </div>
       <div class="card-body">
-        <form id="territorium-form" method="post" action="/admin/territorium/neu">
+        <form id="territorium-form" method="post" action="/admin/territorium/neu" onsubmit="return restSubmit(event, 'territorium-form', '/admin/territorium')">
           <label>Name</label>
           <input type="text" id="t-name" name="name" placeholder="z.B. Ortschaft Nord" required>
           <label>Beschreibung (optional)</label>
@@ -420,7 +420,7 @@
                   data-name="{{ t.name | e }}"
                   data-beschreibung="{{ (t.beschreibung or '') | e }}"
                  title="Bearbeiten">✏️</button>
-                <form method="post" action="/admin/territorium/{{ t.id }}/loeschen" onsubmit="return confirm('Territorium löschen?')">
+                <form onsubmit="return restDelete(event, '/admin/territorium/{{ t.id }}', 'Territorium löschen?')">
                   <button type="submit" class="btn btn-danger" title="Löschen">🗑️</button>
                 </form>
               </div>
@@ -447,7 +447,7 @@
         <span id="ep-form-title">Alarmierungsplan anlegen</span>
       </div>
       <div class="card-body">
-        <form id="ep-form" method="post" action="/admin/alarmierungsplan/neu">
+        <form id="ep-form" method="post" action="/admin/alarmierungsplan/neu" onsubmit="return restSubmit(event, 'ep-form', '/admin/alarmierungsplan')">
 
           <label>Alarmierungstyp</label>
           <select id="ep-alarmierungstyp" name="alarmierungstyp_id" required onchange="loadStichworte(this.value)">
@@ -532,7 +532,7 @@
                   data-standard="{{ 'true' if ep.ist_standard else '' }}"
                   data-fahrzeuge="{% for f in ep.fahrzeuge %}{{ f.id }}{% if not loop.last %},{% endif %}{% endfor %}"
                  title="Bearbeiten">✏️</button>
-                <form method="post" action="/admin/alarmierungsplan/{{ ep.id }}/loeschen" onsubmit="return confirm('Alarmierungsplan löschen?')">
+                <form onsubmit="return restDelete(event, '/admin/alarmierungsplan/{{ ep.id }}', 'Alarmierungsplan löschen?')">
                   <button type="submit" class="btn btn-danger" title="Löschen">🗑️</button>
                 </form>
               </div>
@@ -573,7 +573,7 @@ document.addEventListener('DOMContentLoaded', function() {
           parseInt(cb.dataset.efid) === parseInt(d.id) ? 'none' : '';
       });
 
-      document.getElementById('fahrzeug-form').action = `/admin/fahrzeug/${d.id}/bearbeiten`;
+      document.getElementById('fahrzeug-form').dataset.editId = d.id;
       document.getElementById('fahrzeug-form-title').textContent = 'Fahrzeug bearbeiten';
       document.getElementById('fahrzeug-submit-btn').textContent = '✓ Speichern';
       document.getElementById('fahrzeug-abbrechen-btn').style.display = 'inline-flex';
@@ -605,7 +605,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const d = this.dataset;
       document.getElementById('g-name').value = d.name;
 
-      document.getElementById('gruppe-form').action = `/admin/gruppe/${d.id}/bearbeiten`;
+      document.getElementById('gruppe-form').dataset.editId = d.id;
       document.getElementById('gruppe-form-title').textContent = 'Fahrzeuggruppe bearbeiten';
       document.getElementById('gruppe-submit-btn').textContent = '✓ Speichern';
       document.getElementById('gruppe-abbrechen-btn').style.display = 'inline-flex';
@@ -642,7 +642,7 @@ document.addEventListener('DOMContentLoaded', function() {
         cb.checked = ids.includes(parseInt(cb.dataset.fid));
       });
 
-      document.getElementById('at-form').action = `/admin/alarmierungstyp/${d.id}/bearbeiten`;
+      document.getElementById('at-form').dataset.editId = d.id;
       document.getElementById('at-form-title').textContent = 'Alarmierungstyp bearbeiten';
       document.getElementById('at-submit-btn').textContent = '✓ Speichern';
       document.getElementById('at-abbrechen-btn').style.display = 'inline-flex';
@@ -674,7 +674,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const d = this.dataset;
       document.getElementById('t-name').value = d.name;
       document.getElementById('t-beschreibung').value = d.beschreibung || '';
-      document.getElementById('territorium-form').action = `/admin/territorium/${d.id}/bearbeiten`;
+      document.getElementById('territorium-form').dataset.editId = d.id;
       document.getElementById('territorium-submit-btn').textContent = '✓ Speichern';
       document.getElementById('territorium-abbrechen-btn').style.display = 'inline-flex';
       document.getElementById('territorium-form-title').textContent = 'Territorium bearbeiten';
@@ -724,7 +724,7 @@ document.addEventListener('DOMContentLoaded', function() {
       document.querySelectorAll('#ep-fahrzeuge input[type="checkbox"]').forEach(cb => {
         cb.checked = fids.includes(parseInt(cb.dataset.fid));
       });
-      document.getElementById('ep-form').action = `/admin/alarmierungsplan/${d.id}/bearbeiten`;
+      document.getElementById('ep-form').dataset.editId = d.id;
       document.getElementById('ep-submit-btn').textContent = '✓ Speichern';
       document.getElementById('ep-abbrechen-btn').style.display = 'inline-flex';
       document.getElementById('ep-form-title').textContent = 'Alarmierungsplan bearbeiten';
@@ -753,6 +753,27 @@ window.moveGruppe = function(id, direction) {
   fetch(`/api/gruppe/${id}/move?direction=${direction}`, { method: 'POST' })
     .then(() => location.reload());
 };
+
+// ── REST helpers ─────────────────────────────────────────────────────────────
+function restDelete(event, url, msg) {
+  event.preventDefault();
+  if (!confirm(msg)) return false;
+  fetch(url, { method: 'DELETE' })
+    .then(r => { if (r.ok) location.reload(); });
+  return false;
+}
+
+function restSubmit(event, formId, baseUrl) {
+  event.preventDefault();
+  const form = document.getElementById(formId);
+  const editId = form.dataset.editId;
+  const method = editId ? 'PUT' : 'POST';
+  const url = editId ? `${baseUrl}/${editId}` : `${baseUrl}/neu`;
+  const body = new FormData(form);
+  fetch(url, { method, body })
+    .then(r => { if (r.ok) location.reload(); });
+  return false;
+}
 </script>
 </body>
 </html>
