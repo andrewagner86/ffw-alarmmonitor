@@ -1,155 +1,195 @@
 # 🔥 FFW Alarmmonitor
 
-Web-Anwendung zur Alarmierung und Fahrzeugverwaltung für Freiwillige Feuerwehren. Ermöglicht die Auswahl von Alarmstichworten, automatische Fahrzeugzuordnung, Live-Einsatzübersicht und Verwaltung aller Stammdaten.
-
-## Technologie-Stack
-
-- **Backend**: Python 3.12 / FastAPI
-- **Datenbank**: PostgreSQL 16
-- **Frontend**: Jinja2 Templates + Vanilla JS
-- **Container**: Docker + Docker Compose
+Webbasierte Alarmierungssoftware für Feuerwehren zur Verwaltung und Alarmierung von Fahrzeugen auf Basis von Alarmierungstypen und Alarmierungsplänen.
 
 ---
 
-## Schnellstart
+## Features
 
-### Voraussetzungen
+### Alarmübersicht (`/`)
+- Übersicht aller Fahrzeuge, gruppiert nach Fahrzeuggruppen
+- **4 Fahrzeugstatus** — per Klick auf die Karte wechselbar:
+  - ⬜ **Einsatzbereit** (grau)
+  - 🟢 **Alarmiert** (grün) — nur bei aktivem Alarm verfügbar
+  - 🟡 **Bereitschaft** (gelb) — nur bei aktivem Alarm verfügbar
+  - 🔴 **Nicht einsatzbereit** (rot)
+- Alarmierungstyp aus der Seitenleiste auswählen → Alarm wird ausgelöst
+- Ist ein Alarm aktiv, sind andere Alarmierungstypen gesperrt
+- Drag & Drop Reihenfolge der Fahrzeuge anpassen (Button „⠿ Reihenfolge")
+- Warnhinweise bei nicht verfügbaren Fahrzeugen ohne verfügbares Ersatzfahrzeug
 
-- Docker & Docker Compose installiert
+#### Alarmauslösung mit Alarmierungsplänen
+- **Kein Alarmierungsplan hinterlegt** → Alarm wird direkt ausgelöst
+- **Genau ein Plan vorhanden** → Fahrzeuge des Plans werden sofort alarmiert
+- **Mehrere Pläne vorhanden** → Modaler Auswahldialog erscheint:
+  - Territorium-Auswahl (wenn mehrere Territorien in den Plänen hinterlegt)
+  - Stichwort-Auswahl (wenn mehrere Stichworte in den Plänen hinterlegt)
+  - Vorbelegt mit dem als Standard markierten Plan
+  - Fahrzeugvorschau zeigt die tatsächlich alarmierten Fahrzeuge (inkl. Ersatz)
+  - Warnungen für nicht verfügbare Fahrzeuge werden sofort angezeigt
+  - **Automatische Alarmierung nach 10 Sekunden** — Countdown auf dem Alarmieren-Button; bei Auswahländerung startet der Countdown neu
 
-### Starten
+### Einsatzübersicht (`/einsatz`)
+- Separate Live-Ansicht für den aktiven Einsatz (z. B. auf Anzeigebildschirm)
+- Zeigt Alarmierungstyp, Stichwort, Territorium und Alarmierungszeit
+- Zeigt nur Fahrzeuge mit Status **Alarmiert** oder **Bereitschaft**
+- Gruppierung nach Fahrzeuggruppen
+- Warnhinweise für nicht verfügbare Fahrzeuge
+- Aktualisiert sich automatisch **alle 5 Sekunden**
 
-```bash
-docker compose up --build
-```
+### Ersatzfahrzeuge
+- Jedem Fahrzeug können ein oder mehrere Ersatzfahrzeuge zugeordnet werden
+- Ist ein Fahrzeug beim Alarmauslösen **nicht einsatzbereit**, wird automatisch das erste verfügbare Ersatzfahrzeug alarmiert
+- Fahrzeuge, die selbst Teil der Alarmierung sind, werden nicht als Ersatz berücksichtigt
+- Jedes Ersatzfahrzeug kann nur einmal vergeben werden (kein Doppeleinsatz)
+- Sind keine Ersatzfahrzeuge verfügbar, erscheint eine Sammelwarnung mit allen betroffenen Fahrzeugen
 
-### Stoppen
+### Admin-Bereich (`/admin`)
 
-```bash
-docker compose down          # Daten bleiben erhalten
-docker compose down -v       # Daten vollständig löschen
-```
+Startet direkt auf der **Alarmierungspläne**-Übersicht.
 
----
+**Alarmierungspläne** (`/admin/alarmierungsplaene`)
+- Kombination aus Alarmierungstyp, optionalem Stichwort und Territorium
+- Fahrzeuge dem Plan zuordnen (Mehrfachauswahl)
+- Einen Plan als Standard markieren (automatisch vorausgewählt im Dialog)
+- Jede Kombination (Alarmierungstyp + Stichwort + Territorium) ist eindeutig
 
-## Seiten & URLs
+**Fahrzeuge** (`/admin/fahrzeuge`)
+- Name, Kennzeichen (optional), Funkkennung (optional), Typ
+- Fahrzeuggruppe zuweisen
+- Ersatzfahrzeuge aus dem Fahrzeugbestand auswählen
 
-| URL | Beschreibung |
-|-----|--------------|
-| `http://localhost:8000` | Alarmierungsansicht |
-| `http://localhost:8000/einsatz` | Live-Einsatzübersicht |
-| `http://localhost:8000/admin` | Fahrzeuge verwalten |
-| `http://localhost:8000/admin/gruppen` | Fahrzeuggruppen verwalten |
-| `http://localhost:8000/admin/schlagworte` | Alarmschlagworte verwalten |
+**Fahrzeuggruppen** (`/admin/gruppen`)
+- Gruppen anlegen, umbenennen, löschen
+- Reihenfolge der Gruppen mit ▲/▼-Buttons anpassen
 
----
+**Territorien** (`/admin/territorien`)
+- Territorien anlegen, umbenennen, löschen
+- Wird ein Territorium gelöscht, werden alle zugehörigen Alarmierungspläne automatisch mitgelöscht
 
-## Funktionsübersicht
-
-### Alarmierungsansicht (`/`)
-
-- Linke Sidebar mit allen Alarmstichworten
-- Klick auf ein Stichwort löst Alarm aus:
-  - Alle dem Stichwort zugeordneten, einsatzbereiten Fahrzeuge werden automatisch auf **Alarmiert** gesetzt
-  - Nicht einsatzbereite Fahrzeuge werden ignoriert — sofern ein einsatzbereites **Ersatzfahrzeug** hinterlegt ist, wird dieses stattdessen alarmiert
-  - Ist kein Ersatz verfügbar, erscheint ein Warnhinweis
-- Alle Fahrzeuge bleiben sichtbar mit farbiger Statusanzeige
-- **Status per Klick wechseln** (zyklisch):
-  - Bei aktivem Alarm: Einsatzbereit → Alarmiert → Bereitschaft → Nicht einsatzbereit → …
-  - Ohne Alarm: Einsatzbereit ↔ Nicht einsatzbereit
-- Reihenfolge der Fahrzeuge per Drag & Drop anpassbar (Schalter „⠿ Reihenfolge")
-- Ist ein Alarm aktiv, können keine weiteren Alarme ausgelöst werden — der laufende Alarm muss zuerst beendet werden
-- „Alarm beenden" setzt alle alarmierten/in Bereitschaft befindlichen Fahrzeuge zurück auf Einsatzbereit
-
-#### Fahrzeugstatus
-
-| Farbe | Status | Bedeutung |
-|-------|--------|-----------|
-| Grau | Einsatzbereit | Fahrzeug verfügbar |
-| Grün | Alarmiert | Fahrzeug im Einsatz |
-| Gelb | Bereitschaft | Fahrzeug in Bereitschaft |
-| Rot | Nicht einsatzbereit | Fahrzeug nicht verfügbar |
-
-### Live-Einsatzübersicht (`/einsatz`)
-
-- Zeigt alle Fahrzeuge mit Status **Alarmiert** oder **Bereitschaft**
-- Gruppiert nach Fahrzeuggruppe
-- Aktualisiert sich automatisch alle **5 Sekunden**
-- Geeignet für separate Monitore im Feuerwehrhaus
-
-### Admin: Fahrzeuge (`/admin`)
-
-- Fahrzeuge anlegen und bearbeiten mit:
-  - Name, Kennzeichen (optional), Funkkennung (optional), Typ
-  - Fahrzeuggruppe
-  - Ersatzfahrzeuge (bei Ausfall des Primärfahrzeugs)
-- Übersicht aller Fahrzeuge mit Gruppe und zugeordneten Ersatzfahrzeugen
-
-### Admin: Fahrzeuggruppen (`/admin/gruppen`)
-
-- Gruppen anlegen und benennen
-- Reihenfolge der Gruppen per ▲/▼-Schaltflächen festlegen
-- Gruppen steuern die Darstellungsreihenfolge auf der Alarmierungs- und Einsatzansicht
-
-### Admin: Alarmschlagworte (`/admin/schlagworte`)
-
-- Schlagworte mit Name und optionaler Beschreibung anlegen
-- Fahrzeuge dem Schlagwort zuordnen
+**Alarmierungstypen** (`/admin/alarmierungstypen`)
+- Name und Beschreibung
+- Alarmierungsstichworte pro Typ (eines pro Zeile)
 
 ---
 
-## Datenbankschema
+## Datenmodell
 
 ```
 fahrzeug_gruppen
-├── id (PK)
-├── name
-└── position
+  id, name (unique), position
+
+territorien
+  id, name (unique), beschreibung
 
 fahrzeuge
-├── id (PK)
-├── name
-├── kennzeichen (optional)
-├── funkkennung (optional)
-├── typ
-├── status  (einsatzbereit | alarmiert | bereitschaft | nicht_einsatzbereit)
-├── position
-└── gruppe_id (FK → fahrzeug_gruppen)
+  id, name, kennzeichen, funkkennung, typ
+  status: einsatzbereit | alarmiert | bereitschaft | nicht_einsatzbereit
+  position, gruppe_id → fahrzeug_gruppen
 
-schlagworte
-├── id (PK)
-├── name
-└── beschreibung
+fahrzeug_ersatz              ← M:N self-referencing (Fahrzeug ↔ Ersatzfahrzeug)
+
+alarmierungstypen
+  id, name (unique), beschreibung
+
+alarmierungsstichworte
+  id, text, alarmierungstyp_id → alarmierungstypen (CASCADE)
+
+alarmierungsplaene
+  id, alarmierungstyp_id → alarmierungstypen (CASCADE)
+  stichwort_id → alarmierungsstichworte (RESTRICT, nullable)
+  territorium_id → territorien (CASCADE)
+  ist_standard
+  UNIQUE (alarmierungstyp_id, stichwort_id, territorium_id)
+
+alarmierungsplan_fahrzeuge   ← M:N Alarmierungsplan ↔ Fahrzeug
 
 aktiv_alarme
-├── id (PK)
-├── schlagwort_id (FK → schlagworte)
-├── erstellt_am
-└── aktiv (bool)
-
-fahrzeug_schlagwort  (M:N)
-├── fahrzeug_id (FK)
-└── schlagwort_id (FK)
-
-fahrzeug_ersatz  (M:N self-referencing)
-├── fahrzeug_id (FK → fahrzeuge)
-└── ersatz_id   (FK → fahrzeuge)
+  id, alarmierungstyp_id, stichwort_id, territorium_id
+  warnungen_json, erstellt_am, aktiv
 ```
 
 ---
 
-## Konfiguration
+## Technologie
 
-| Variable | Standard | Beschreibung |
-|----------|----------|--------------| 
-| `DATABASE_URL` | `postgresql://feuerwehr:feuerwehr123@db:5432/feuerwehr` | PostgreSQL-Verbindungsstring |
+| Komponente | Version |
+|---|---|
+| Python | 3.11 |
+| FastAPI | 0.115 |
+| SQLAlchemy | 2.0 |
+| Jinja2 | 3.1 |
+| PostgreSQL | 16 |
+| Uvicorn | 0.30 |
+| SortableJS (CDN) | 1.15.2 |
 
 ---
 
-## Empfohlene Ersteinrichtung
+## Installation & Start
 
-1. Anwendung starten: `docker compose up --build`
-2. **Fahrzeuggruppen** anlegen unter `/admin/gruppen` (z. B. Löschzug, Hilfeleistung)
-3. **Fahrzeuge** anlegen unter `/admin` — Gruppe und ggf. Ersatzfahrzeuge zuweisen
-4. **Alarmschlagworte** anlegen unter `/admin/schlagworte` — Fahrzeuge zuordnen
-5. Alarmierungsansicht unter `http://localhost:8000` aufrufen
+### Voraussetzungen
+- [Docker](https://docs.docker.com/get-docker/) und Docker Compose
+
+### Start
+
+```bash
+docker compose up -d --build
+```
+
+Die App ist danach unter **http://localhost:8000** erreichbar.
+
+### Stopp
+
+```bash
+docker compose down
+```
+
+Daten bleiben im Docker-Volume `postgres_data` erhalten.
+
+### Daten zurücksetzen
+
+```bash
+docker compose down -v && docker compose up -d --build
+```
+
+---
+
+## Routen-Übersicht
+
+| Route | Beschreibung |
+|---|---|
+| `GET /` | Alarmübersicht (leitet bei aktivem Alarm weiter) |
+| `GET /alarm/{id}` | Alarmansicht für Alarmierungstyp |
+| `GET /einsatz` | Live-Einsatzübersicht |
+| `GET /api/einsatz` | JSON-API für Einsatzübersicht |
+| `GET /api/alarmierungstyp/{id}/einsatzplaene` | Alarmierungspläne mit Fahrzeugvorschau und Warnungen |
+| `GET /api/alarmierungstyp/{id}/stichworte` | Stichworte eines Alarmierungstyps |
+| `POST /api/alarm/starten` | Alarm auslösen (mit Ersatzfahrzeug-Logik) |
+| `POST /api/alarm/beenden` | Aktiven Alarm beenden |
+| `POST /api/fahrzeug/status-toggle` | Fahrzeugstatus wechseln |
+| `POST /api/fahrzeug/reihenfolge` | Reihenfolge speichern |
+| `POST /api/gruppe/{id}/move` | Gruppenreihenfolge anpassen |
+| `GET /admin` | → Weiterleitung auf `/admin/alarmierungsplaene` |
+| `GET /admin/alarmierungsplaene` | Admin: Alarmierungspläne |
+| `GET /admin/fahrzeuge` | Admin: Fahrzeuge |
+| `GET /admin/gruppen` | Admin: Fahrzeuggruppen |
+| `GET /admin/territorien` | Admin: Territorien |
+| `GET /admin/alarmierungstypen` | Admin: Alarmierungstypen |
+
+---
+
+## Projektstruktur
+
+```
+feuerwehr-app/
+├── docker-compose.yml
+├── Dockerfile
+├── requirements.txt
+├── README.md
+└── app/
+    ├── main.py
+    └── templates/
+        ├── index.html    # Alarmübersicht
+        ├── einsatz.html  # Live-Einsatzübersicht
+        └── admin.html    # Admin-Bereich
+```
