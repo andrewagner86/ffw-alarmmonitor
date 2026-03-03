@@ -95,7 +95,7 @@ alarmierungstypen
 alarmierungsstichworte
   id, text, alarmierungstyp_id → alarmierungstypen (CASCADE)
 
-alarmierungsplaene
+einsatzplaene
   id, alarmierungstyp_id → alarmierungstypen (CASCADE)
   stichwort_id → alarmierungsstichworte (RESTRICT, nullable)
   territorium_id → territorien (CASCADE)
@@ -108,6 +108,49 @@ aktiv_alarme
   id, alarmierungstyp_id, stichwort_id, territorium_id
   warnungen_json, erstellt_am, aktiv
 ```
+
+---
+
+## REST API
+
+Die API ist vollständig REST-konform. Ressourcen werden über einheitliche Collection-URLs verwaltet:
+
+| Methode | URL | Beschreibung |
+|---|---|---|
+| `GET` | `/` | Alarmübersicht |
+| `GET` | `/alarm/{id}` | Alarmansicht für Alarmierungstyp |
+| `GET` | `/einsatz` | Live-Einsatzübersicht |
+| `GET` | `/api/einsatz` | Einsatzdaten als JSON |
+| `GET` | `/api/alarmierungstyp/{id}/einsatzplaene` | Alarmierungspläne mit Fahrzeugvorschau |
+| `GET` | `/api/alarmierungstyp/{id}/stichworte` | Stichworte eines Alarmierungstyps |
+| `POST` | `/api/alarm/starten` | Alarm auslösen (JSON-Body) |
+| `POST` | `/api/alarm/beenden` | Aktiven Alarm beenden |
+| `POST` | `/api/fahrzeug/status-toggle` | Fahrzeugstatus wechseln (JSON-Body) |
+| `POST` | `/api/fahrzeug/reihenfolge` | Reihenfolge speichern (JSON-Body) |
+| `POST` | `/api/gruppe/{id}/move` | Gruppenreihenfolge anpassen |
+| `GET` | `/admin` | → Weiterleitung auf `/admin/alarmierungsplaene` |
+| `GET` | `/admin/fahrzeuge` | Admin-Ansicht Fahrzeuge |
+| `POST` | `/admin/fahrzeuge` | Fahrzeug anlegen |
+| `PUT` | `/admin/fahrzeug/{id}` | Fahrzeug bearbeiten |
+| `DELETE` | `/admin/fahrzeug/{id}` | Fahrzeug löschen |
+| `GET` | `/admin/gruppen` | Admin-Ansicht Gruppen |
+| `POST` | `/admin/gruppen` | Gruppe anlegen |
+| `PUT` | `/admin/gruppe/{id}` | Gruppe bearbeiten |
+| `DELETE` | `/admin/gruppe/{id}` | Gruppe löschen |
+| `GET` | `/admin/territorien` | Admin-Ansicht Territorien |
+| `POST` | `/admin/territorien` | Territorium anlegen |
+| `PUT` | `/admin/territorium/{id}` | Territorium bearbeiten |
+| `DELETE` | `/admin/territorium/{id}` | Territorium löschen |
+| `GET` | `/admin/alarmierungsplaene` | Admin-Ansicht Alarmierungspläne |
+| `POST` | `/admin/alarmierungsplaene` | Alarmierungsplan anlegen |
+| `PUT` | `/admin/alarmierungsplan/{id}` | Alarmierungsplan bearbeiten |
+| `DELETE` | `/admin/alarmierungsplan/{id}` | Alarmierungsplan löschen |
+| `GET` | `/admin/alarmierungstypen` | Admin-Ansicht Alarmierungstypen |
+| `POST` | `/admin/alarmierungstypen` | Alarmierungstyp anlegen |
+| `PUT` | `/admin/alarmierungstyp/{id}` | Alarmierungstyp bearbeiten |
+| `DELETE` | `/admin/alarmierungstyp/{id}` | Alarmierungstyp löschen |
+
+Alle schreibenden Endpunkte geben `{"ok": true}` zurück. Fehler werden als HTTP-Statuscodes signalisiert (404 bei nicht gefundener Ressource, 400/409 bei Konflikten).
 
 ---
 
@@ -154,27 +197,42 @@ docker compose down -v && docker compose up -d --build
 
 ---
 
-## Routen-Übersicht
+## Tests
 
-| Route | Beschreibung |
+Unit-Tests für alle API-Endpunkte befinden sich in `tests/test_api.py`. Sie verwenden `unittest` mit FastAPIs `TestClient` und einer SQLite-In-Memory-Datenbank — es wird keine laufende PostgreSQL-Instanz benötigt.
+
+### Abhängigkeiten installieren
+
+```bash
+pip install fastapi httpx sqlalchemy jinja2 python-multipart
+```
+
+### Tests ausführen
+
+```bash
+# Mit pytest (empfohlen):
+python -m pytest tests/test_api.py -v
+
+# Mit unittest:
+python -m unittest tests.test_api -v
+```
+
+### Testabdeckung
+
+62 Tests in 10 Testklassen:
+
+| Testklasse | Beschreibung |
 |---|---|
-| `GET /` | Alarmübersicht (leitet bei aktivem Alarm weiter) |
-| `GET /alarm/{id}` | Alarmansicht für Alarmierungstyp |
-| `GET /einsatz` | Live-Einsatzübersicht |
-| `GET /api/einsatz` | JSON-API für Einsatzübersicht |
-| `GET /api/alarmierungstyp/{id}/einsatzplaene` | Alarmierungspläne mit Fahrzeugvorschau und Warnungen |
-| `GET /api/alarmierungstyp/{id}/stichworte` | Stichworte eines Alarmierungstyps |
-| `POST /api/alarm/starten` | Alarm auslösen (mit Ersatzfahrzeug-Logik) |
-| `POST /api/alarm/beenden` | Aktiven Alarm beenden |
-| `POST /api/fahrzeug/status-toggle` | Fahrzeugstatus wechseln |
-| `POST /api/fahrzeug/reihenfolge` | Reihenfolge speichern |
-| `POST /api/gruppe/{id}/move` | Gruppenreihenfolge anpassen |
-| `GET /admin` | → Weiterleitung auf `/admin/alarmierungsplaene` |
-| `GET /admin/alarmierungsplaene` | Admin: Alarmierungspläne |
-| `GET /admin/fahrzeuge` | Admin: Fahrzeuge |
-| `GET /admin/gruppen` | Admin: Fahrzeuggruppen |
-| `GET /admin/territorien` | Admin: Territorien |
-| `GET /admin/alarmierungstypen` | Admin: Alarmierungstypen |
+| `TestFahrzeugeAPI` | CRUD Fahrzeuge, Gruppenzuweisung |
+| `TestGruppenAPI` | CRUD Gruppen, Reihenfolge verschieben |
+| `TestTerritorienAPI` | CRUD Territorien |
+| `TestAlarmierungstypenAPI` | CRUD Alarmierungstypen, Stichwort-API |
+| `TestAlarmierungsplaeneAPI` | CRUD Pläne, Duplikat-Prüfung, Standard-Reset, Fahrzeugvorschau |
+| `TestAlarmAPI` | Alarm starten/beenden, Fahrzeugstatus, Warnungen, Persistenz |
+| `TestFahrzeugStatusToggle` | Statuszyklus mit und ohne aktiven Alarm |
+| `TestReihenfolgeAPI` | Fahrzeug-Reihenfolge speichern |
+| `TestEinsatzAPI` | Einsatzdaten-API, Gruppenstruktur, Warnungen |
+| `TestErsatzfahrzeugLogik` | Kein Doppeleinsatz, Plan-Ausschluss, Sammelwarnung |
 
 ---
 
@@ -186,6 +244,8 @@ feuerwehr-app/
 ├── Dockerfile
 ├── requirements.txt
 ├── README.md
+├── tests/
+│   └── test_api.py       # Unit-Tests (62 Tests)
 └── app/
     ├── main.py
     └── templates/
