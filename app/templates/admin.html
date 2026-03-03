@@ -110,11 +110,11 @@
   <div class="page-subtitle">Fahrzeuggruppen, Fahrzeuge, Territorien, Alarmierungstypen und Alarmierungspläne verwalten</div>
 
   <div class="tabs">
-    <a href="/admin/gruppen"    class="tab-btn {% if tab == 'gruppen'   %}active{% endif %}">📂 Fahrzeuggruppen</a>
-    <a href="/admin/fahrzeuge"            class="tab-btn {% if tab == 'fahrzeuge' %}active{% endif %}">🚒 Fahrzeuge</a>
-    <a href="/admin/territorien" class="tab-btn {% if tab == 'territorien' %}active{% endif %}">🌍 Territorien</a>
-    <a href="/admin/alarmierungstypen" class="tab-btn {% if tab == 'alarmierungstypen' %}active{% endif %}">⚡ Alarmierungstypen</a>
-    <a href="/admin/alarmierungsplaene" class="tab-btn {% if tab == 'alarmierungsplaene' %}active{% endif %}">📋 Alarmierungspläne</a>
+    <a href="/admin/gruppe"    class="tab-btn {% if tab == 'gruppen'   %}active{% endif %}">📂 Fahrzeuggruppen</a>
+    <a href="/admin/fahrzeug"            class="tab-btn {% if tab == 'fahrzeuge' %}active{% endif %}">🚒 Fahrzeuge</a>
+    <a href="/admin/territorium" class="tab-btn {% if tab == 'territorien' %}active{% endif %}">🌍 Territorien</a>
+    <a href="/admin/alarmierungstyp" class="tab-btn {% if tab == 'alarmierungstypen' %}active{% endif %}">⚡ Alarmierungstypen</a>
+    <a href="/admin/alarmierungsplan" class="tab-btn {% if tab == 'alarmierungsplaene' %}active{% endif %}">📋 Alarmierungspläne</a>
   </div>
 
 
@@ -127,7 +127,7 @@
         <span id="fahrzeug-form-title">Fahrzeug anlegen</span>
       </div>
       <div class="card-body">
-        <form id="fahrzeug-form" method="post" action="/admin/fahrzeug/neu" onsubmit="return restSubmit(event, 'fahrzeug-form', '/admin/fahrzeug')">
+        <form id="fahrzeug-form" method="post" action="/admin/fahrzeug" onsubmit="return restSubmit(event, 'fahrzeug-form', '/admin/fahrzeug')">
           <div class="form-row">
             <div>
               <label>Fahrzeugname</label>
@@ -242,7 +242,7 @@
         <span id="gruppe-form-title">Fahrzeuggruppe anlegen</span>
       </div>
       <div class="card-body">
-        <form id="gruppe-form" method="post" action="/admin/gruppe/neu" onsubmit="return restSubmit(event, 'gruppe-form', '/admin/gruppe')">
+        <form id="gruppe-form" method="post" action="/admin/gruppe" onsubmit="return restSubmit(event, 'gruppe-form', '/admin/gruppe')">
           <label>Fahrzeuggruppenname</label>
           <input type="text" id="g-name" name="name" placeholder="z.B. Löschzug, Hilfeleistung" required>
           <div class="form-actions">
@@ -309,13 +309,15 @@
         <span id="at-form-title">Alarmierungstyp anlegen</span>
       </div>
       <div class="card-body">
-        <form id="at-form" method="post" action="/admin/alarmierungstyp/neu" onsubmit="return restSubmit(event, 'at-form', '/admin/alarmierungstyp')">
+        <form id="at-form" method="post" action="/admin/alarmierungstyp" onsubmit="return atFormSubmit(event)">
           <label>Name</label>
           <input type="text" id="at-name" name="name" placeholder="z.B. BRAND Gebäude" required>
           <label>Beschreibung (optional)</label>
           <input type="text" id="at-beschreibung" name="beschreibung" placeholder="z.B. B1 – Kleinbrand">
-          <label>Alarmierungsstichworte (optional, eines pro Zeile)</label>
-          <textarea id="at-stichworte" name="stichworte" rows="4" placeholder="z.B.&#10;BRAND Gebäude&#10;F1&#10;Feuer"></textarea>
+          <label>Alarmierungsstichworte</label>
+          <div id="at-stichwort-liste" style="display:flex;flex-direction:column;gap:0.35rem;margin-bottom:0.4rem"></div>
+          <button type="button" onclick="atStichwortZeileHinzufuegen()" class="btn btn-ghost btn-sm" style="align-self:flex-start;margin-bottom:0.75rem">+ Stichwort hinzufügen</button>
+          <textarea name="stichworte" id="at-stichworte-hidden" style="display:none"></textarea>
           <div class="form-actions">
             <button type="submit" id="at-submit-btn" class="btn btn-primary">+ Alarmierungstyp anlegen</button>
             <button type="button" id="at-abbrechen-btn" class="btn btn-ghost" style="display:none" onclick="atAbbrechen()">✕ Abbrechen</button>
@@ -353,8 +355,7 @@
                   data-id="{{ sw.id }}"
                   data-name="{{ sw.name | e }}"
                   data-beschreibung="{{ (sw.beschreibung or '') | e }}"
-                  data-stichworte="{{ sw.alarmierungsstichworte | map(attribute='text') | join('
-') | e }}"
+                  data-stichworte-json='[{% for ast in sw.alarmierungsstichworte %}{"id":{{ ast.id }},"text":"{{ ast.text | e }}"}{% if not loop.last %},{% endif %}{% endfor %}]'
                  title="Bearbeiten">✏️</button>
                 <form onsubmit="return restDelete(event, '/admin/alarmierungstyp/{{ sw.id }}', 'Alarmierungstyp löschen?')">
                   <button type="submit" class="btn btn-danger" title="Löschen">🗑️</button>
@@ -383,7 +384,7 @@
         <span id="territorium-form-title">Territorium anlegen</span>
       </div>
       <div class="card-body">
-        <form id="territorium-form" method="post" action="/admin/territorium/neu" onsubmit="return restSubmit(event, 'territorium-form', '/admin/territorium')">
+        <form id="territorium-form" method="post" action="/admin/territorium" onsubmit="return restSubmit(event, 'territorium-form', '/admin/territorium')">
           <label>Name</label>
           <input type="text" id="t-name" name="name" placeholder="z.B. Ortschaft Nord" required>
           <label>Beschreibung (optional)</label>
@@ -447,7 +448,7 @@
         <span id="ep-form-title">Alarmierungsplan anlegen</span>
       </div>
       <div class="card-body">
-        <form id="ep-form" method="post" action="/admin/alarmierungsplan/neu" onsubmit="return restSubmit(event, 'ep-form', '/admin/alarmierungsplan')">
+        <form id="ep-form" method="post" action="/admin/alarmierungsplan" onsubmit="return restSubmit(event, 'ep-form', '/admin/alarmierungsplan')">
 
           <label>Alarmierungstyp</label>
           <select id="ep-alarmierungstyp" name="alarmierungstyp_id" required onchange="loadStichworte(this.value)">
@@ -589,7 +590,7 @@ document.addEventListener('DOMContentLoaded', function() {
   window.fahrzeugAbbrechen = function() {
     document.getElementById('fahrzeug-form').reset();
     document.querySelectorAll('#f-ersatzfahrzeuge .checkbox-item').forEach(item => item.style.display = '');
-    document.getElementById('fahrzeug-form').action = '/admin/fahrzeug/neu';
+    document.getElementById('fahrzeug-form').action = '/admin/fahrzeug';
     document.getElementById('fahrzeug-form-title').textContent = 'Fahrzeug anlegen';
     document.getElementById('fahrzeug-submit-btn').textContent = '+ Fahrzeug anlegen';
     document.getElementById('fahrzeug-abbrechen-btn').style.display = 'none';
@@ -620,7 +621,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   window.gruppeAbbrechen = function() {
     document.getElementById('gruppe-form').reset();
-    document.getElementById('gruppe-form').action = '/admin/gruppe/neu';
+    document.getElementById('gruppe-form').action = '/admin/gruppe';
     document.getElementById('gruppe-form-title').textContent = 'Fahrzeuggruppe anlegen';
     document.getElementById('gruppe-submit-btn').textContent = '+ Fahrzeuggruppe anlegen';
     document.getElementById('gruppe-abbrechen-btn').style.display = 'none';
@@ -637,7 +638,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const ids = d.fahrzeuge ? d.fahrzeuge.split(',').map(Number).filter(Boolean) : [];
       document.getElementById('at-name').value = d.name;
       document.getElementById('at-beschreibung').value = d.beschreibung;
-      document.getElementById('at-stichworte').value = d.stichworte || '';
+      const sw = JSON.parse(this.dataset.stichworteJson || '[]'); atStichwortListeFuellen(sw);
       document.querySelectorAll('#at-fahrzeuge input[type="checkbox"]').forEach(cb => {
         cb.checked = ids.includes(parseInt(cb.dataset.fid));
       });
@@ -657,13 +658,56 @@ document.addEventListener('DOMContentLoaded', function() {
 
   window.atAbbrechen = function() {
     document.getElementById('at-form').reset();
-    document.getElementById('at-stichworte').value = '';
-    document.getElementById('at-form').action = '/admin/alarmierungstyp/neu';
+    document.getElementById('at-stichwort-liste').innerHTML = '';
+    document.getElementById('at-form').action = '/admin/alarmierungstyp';
     document.getElementById('at-form-title').textContent = 'Alarmierungstyp anlegen';
     document.getElementById('at-submit-btn').textContent = '+ Alarmierungstyp anlegen';
     document.getElementById('at-abbrechen-btn').style.display = 'none';
     document.getElementById('at-form-card').classList.remove('editing');
     if (aktiveAtRow) { aktiveAtRow.classList.remove('active-row'); aktiveAtRow = null; }
+  };
+
+
+  // ── Alarmierungsstichworte ────────────────────────────────────────────────
+
+  window.atStichwortZeileHinzufuegen = function(id, text) {
+    const liste = document.getElementById('at-stichwort-liste');
+    const zeile = document.createElement('div');
+    zeile.style.cssText = 'display:flex;gap:0.4rem;align-items:center';
+    zeile.dataset.sid = id || '';
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = text || '';
+    inp.placeholder = 'z.B. B1 Kleinbrand';
+    inp.style.flex = '1';
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.textContent = 'x';
+    rm.className = 'btn btn-ghost btn-sm';
+    rm.style.cssText = 'padding:0 0.5rem;font-size:1.1rem;line-height:1';
+    rm.onclick = function() { zeile.remove(); };
+    zeile.appendChild(inp);
+    zeile.appendChild(rm);
+    liste.appendChild(zeile);
+    inp.focus();
+  };
+
+  window.atStichwortListeFuellen = function(stichworte) {
+    document.getElementById('at-stichwort-liste').innerHTML = '';
+    stichworte.forEach(function(s) { atStichwortZeileHinzufuegen(s.id, s.text); });
+  };
+
+  window.atFormSubmit = function(event) {
+    var zeilen = document.querySelectorAll('#at-stichwort-liste > div');
+    var lines = [];
+    zeilen.forEach(function(z) {
+      var text = z.querySelector('input').value.trim();
+      if (!text) return;
+      var sid = z.dataset.sid;
+      lines.push(sid ? sid + ':' + text : text);
+    });
+    document.getElementById('at-stichworte-hidden').value = lines.join('\n');
+    return restSubmit(event, 'at-form', '/admin/alarmierungstyp');
   };
 
   // ── Territorien ────────────────────────────────────────────────────────────
@@ -687,7 +731,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   window.territoriumAbbrechen = function() {
     document.getElementById('territorium-form').reset();
-    document.getElementById('territorium-form').action = '/admin/territorium/neu';
+    document.getElementById('territorium-form').action = '/admin/territorium';
     document.getElementById('territorium-submit-btn').textContent = '+ Territorium anlegen';
     document.getElementById('territorium-abbrechen-btn').style.display = 'none';
     document.getElementById('territorium-form-title').textContent = 'Territorium anlegen';
@@ -738,7 +782,7 @@ document.addEventListener('DOMContentLoaded', function() {
   window.epAbbrechen = function() {
     document.getElementById('ep-form').reset();
     document.getElementById('ep-stichwort').innerHTML = '<option value="">— keines —</option>';
-    document.getElementById('ep-form').action = '/admin/alarmierungsplan/neu';
+    document.getElementById('ep-form').action = '/admin/alarmierungsplan';
     document.getElementById('ep-submit-btn').textContent = '+ Alarmierungsplan anlegen';
     document.getElementById('ep-abbrechen-btn').style.display = 'none';
     document.getElementById('ep-form-title').textContent = 'Alarmierungsplan anlegen';
@@ -768,7 +812,7 @@ function restSubmit(event, formId, baseUrl) {
   const form = document.getElementById(formId);
   const editId = form.dataset.editId;
   const method = editId ? 'PUT' : 'POST';
-  const url = editId ? `${baseUrl}/${editId}` : `${baseUrl}/neu`;
+  const url = editId ? `${baseUrl}/${editId}` : baseUrl;
   const body = new FormData(form);
   fetch(url, { method, body })
     .then(r => { if (r.ok) location.reload(); });

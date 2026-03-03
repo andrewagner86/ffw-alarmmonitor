@@ -432,15 +432,15 @@ def gruppe_move(gid: int, direction: str = "up", db: Session = Depends(get_db)):
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin():
-    return RedirectResponse("/admin/alarmierungsplaene", status_code=302)
+    return RedirectResponse("/admin/alarmierungsplan", status_code=302)
 
 
-@app.get("/admin/fahrzeuge", response_class=HTMLResponse)
+@app.get("/admin/fahrzeug", response_class=HTMLResponse)
 def admin_fahrzeuge(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("admin.html", {"request": request, **admin_context(db, "fahrzeuge")})
 
 
-@app.post("/admin/fahrzeug/neu")
+@app.post("/admin/fahrzeug")
 def fahrzeug_neu(
     name: str = Form(...), kennzeichen: str = Form(""), funkkennung: str = Form(""),
     typ: str = Form(...), gruppe_id: Optional[int] = Form(None),
@@ -485,12 +485,12 @@ def fahrzeug_loeschen(fid: int, db: Session = Depends(get_db)):
 
 # ─── Admin: Fahrzeuggruppen ───────────────────────────────────────────────────
 
-@app.get("/admin/gruppen", response_class=HTMLResponse)
+@app.get("/admin/gruppe", response_class=HTMLResponse)
 def admin_gruppen(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("admin.html", {"request": request, **admin_context(db, "gruppen")})
 
 
-@app.post("/admin/gruppe/neu")
+@app.post("/admin/gruppe")
 def gruppe_neu(name: str = Form(...), db: Session = Depends(get_db)):
     db.add(FahrzeugGruppe(name=name))
     db.commit()
@@ -518,12 +518,12 @@ def gruppe_loeschen(gid: int, db: Session = Depends(get_db)):
 
 # ─── Admin: Territorien ───────────────────────────────────────────────────────
 
-@app.get("/admin/territorien", response_class=HTMLResponse)
+@app.get("/admin/territorium", response_class=HTMLResponse)
 def admin_territorien(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("admin.html", {"request": request, **admin_context(db, "territorien")})
 
 
-@app.post("/admin/territorium/neu")
+@app.post("/admin/territorium")
 def territorium_neu(name: str = Form(...), beschreibung: str = Form(""), db: Session = Depends(get_db)):
     db.add(Territorium(name=name, beschreibung=beschreibung or None))
     db.commit()
@@ -552,12 +552,12 @@ def territorium_loeschen(tid: int, db: Session = Depends(get_db)):
 
 # ─── Admin: Alarmierungsplan ───────────────────────────────────────────────────────
 
-@app.get("/admin/alarmierungsplaene", response_class=HTMLResponse)
+@app.get("/admin/alarmierungsplan", response_class=HTMLResponse)
 def admin_alarmierungsplan(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("admin.html", {"request": request, **admin_context(db, "alarmierungsplaene")})
 
 
-@app.post("/admin/alarmierungsplan/neu")
+@app.post("/admin/alarmierungsplan")
 def alarmierungsplan_neu(
     alarmierungstyp_id: int = Form(...),
     stichwort_id: Optional[str] = Form(None),
@@ -647,22 +647,22 @@ def get_stichworte(atid: int, db: Session = Depends(get_db)):
 
 # ─── Admin: Alarmierungstypen ─────────────────────────────────────────────────
 
-@app.get("/admin/alarmierungstypen", response_class=HTMLResponse)
+@app.get("/admin/alarmierungstyp", response_class=HTMLResponse)
 def admin_alarmierungstypen(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("admin.html", {"request": request, **admin_context(db, "alarmierungstypen")})
 
 
-@app.post("/admin/alarmierungstyp/neu")
+@app.post("/admin/alarmierungstyp")
 def alarmierungstyp_neu(
     name: str = Form(...), beschreibung: str = Form(""),
-    stichworte: str = Form(""),
+    stichwort_text: list[str] = Form(default=[]),
     db: Session = Depends(get_db)
 ):
     at = Alarmierungstyp(name=name, beschreibung=beschreibung or None)
     db.add(at)
     db.flush()
-    for zeile in [z.strip() for z in stichworte.split("\n") if z.strip()]:
-        db.add(Alarmierungsstichwort(text=zeile, alarmierungstyp_id=at.id))
+    for text in [t.strip() for t in stichwort_text if t.strip()]:
+        db.add(Alarmierungsstichwort(text=text, alarmierungstyp_id=at.id))
     db.commit()
     return {"ok": True}
 
@@ -678,9 +678,32 @@ def alarmierungstyp_bearbeiten(
         raise HTTPException(status_code=404)
     at.name         = name
     at.beschreibung = beschreibung or None
-    db.query(Alarmierungsstichwort).filter(Alarmierungsstichwort.alarmierungstyp_id == atid).delete()
+    eingehend = []
     for zeile in [z.strip() for z in stichworte.split("\n") if z.strip()]:
-        db.add(Alarmierungsstichwort(text=zeile, alarmierungstyp_id=at.id))
+        if ":" in zeile:
+            prefix, _, text = zeile.partition(":")
+            if prefix.strip().isdigit():
+                eingehend.append((int(prefix.strip()), text.strip()))
+                continue
+        eingehend.append((None, zeile))
+    eingehende_ids = {sid for sid, _ in eingehend if sid}
+    bestehende = db.query(Alarmierungsstichwort).filter(
+        Alarmierungsstichwort.alarmierungstyp_id == atid
+    ).all()
+    for s in bestehende:
+        if s.id not in eingehende_ids:
+            in_verwendung = db.query(Alarmierungsplan).filter(
+                Alarmierungsplan.stichwort_id == s.id
+            ).first()
+            if not in_verwendung:
+                db.delete(s)
+    for sid, text in eingehend:
+        if sid:
+            s = db.get(Alarmierungsstichwort, sid)
+            if s:
+                s.text = text
+        else:
+            db.add(Alarmierungsstichwort(text=text, alarmierungstyp_id=atid))
     db.commit()
     return {"ok": True}
 
