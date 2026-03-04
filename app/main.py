@@ -1,5 +1,6 @@
 import asyncio
 from fastapi import FastAPI, Depends, HTTPException, Request, Form, UploadFile, File
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Table, ForeignKey, UniqueConstraint
@@ -125,6 +126,8 @@ Base.metadata.create_all(bind=engine)
 # ─── App ──────────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="FFW Alarmmonitor")
+
+app.mount("/static", StaticFiles(directory=str(__import__("pathlib").Path(__file__).parent / "static")), name="static")
 
 # ─── SSE: Einsatzübersicht ────────────────────────────────────────────────────
 
