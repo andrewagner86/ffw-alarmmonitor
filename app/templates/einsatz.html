@@ -72,7 +72,7 @@
   </div>
   <div class="hdr-right">
     <div class="refresh-indicator">
-      <span class="refresh-dot"></span> Live · alle 5s
+      <span class="refresh-dot"></span> Live
     </div>
     <a href="/" class="hdr-btn">← Alarmierung</a>
   </div>
@@ -160,8 +160,19 @@ async function refresh() {
   } catch(e) { console.error('Refresh-Fehler:', e); }
 }
 
+// Server-Sent Events: Push-Updates vom Server
+function connectSSE() {
+  const es = new EventSource('/api/einsatz/stream');
+  es.onmessage = () => refresh();
+  es.onerror = () => {
+    es.close();
+    // Reconnect nach 3 Sekunden
+    setTimeout(connectSSE, 3000);
+  };
+}
+
 refresh();
-setInterval(refresh, 5000);
+connectSSE();
 </script>
 </body>
 </html>

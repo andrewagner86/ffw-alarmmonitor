@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import FastAPI, Depends, HTTPException, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
@@ -124,6 +125,20 @@ Base.metadata.create_all(bind=engine)
 # ─── App ──────────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="FFW Alarmmonitor")
+
+# ─── SSE: Einsatzübersicht ────────────────────────────────────────────────────
+
+_sse_subscribers: list[asyncio.Queue] = []
+
+async def _notify_sse():
+    """Sendet ein Update-Event an alle verbundenen SSE-Clients."""
+    for q in list(_sse_subscribers):
+        try:
+            q.put_nowait("update")
+        except asyncio.QueueFull:
+            pass
+
+
 templates = Jinja2Templates(directory="app/templates")
 
 
@@ -303,7 +318,7 @@ def _fahrzeuge_alarmieren(plan_fahrzeuge) -> list:
 
 
 @app.post("/api/alarm/starten")
-def alarm_starten(payload: AlarmStartenPayload, db: Session = Depends(get_db)):
+async def alarm_starten(payload: AlarmStartenPayload, db: Session = Depends(get_db)):
     alarm = aktiver_alarm(db)
     if alarm:
         raise HTTPException(status_code=409, detail="Alarm bereits aktiv")
@@ -323,6 +338,7 @@ def alarm_starten(payload: AlarmStartenPayload, db: Session = Depends(get_db)):
     )
     db.add(alarm)
     db.commit()
+    asyncio.create_task(_notify_sse())
     return {"ok": True, "alarmierungstyp_id": payload.alarmierungstyp_id, "warnungen": warnungen}
 
 
@@ -337,6 +353,34 @@ def _alarm_beenden_intern(db: Session):
 
 
 # ─── Einsatzübersicht ─────────────────────────────────────────────────────────
+
+@app.get("/api/einsatz/stream")
+async def einsatz_stream(request: Request):
+    """Server-Sent Events – Push-Updates für die Einsatzübersicht."""
+    queue: asyncio.Queue = asyncio.Queue(maxsize=10)
+    _sse_subscribers.append(queue)
+
+    async def event_generator():
+        try:
+            yield "data: update\n\n"           # initiales Event beim Verbindungsaufbau
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    await asyncio.wait_for(queue.get(), timeout=30)
+                    yield "data: update\n\n"
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"          # Keep-alive alle 30s
+        finally:
+            if queue in _sse_subscribers:
+                _sse_subscribers.remove(queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
 
 @app.get("/einsatz", response_class=HTMLResponse)
 def einsatz(request: Request):
@@ -386,7 +430,7 @@ class StatusPayload(BaseModel):
     fahrzeug_id: int
 
 @app.post("/api/fahrzeug/status-toggle")
-def fahrzeug_status_toggle(payload: StatusPayload, db: Session = Depends(get_db)):
+async def fahrzeug_status_toggle(payload: StatusPayload, db: Session = Depends(get_db)):
     fzg = db.get(Fahrzeug, payload.fahrzeug_id)
     if not fzg:
         raise HTTPException(status_code=404)
@@ -394,12 +438,14 @@ def fahrzeug_status_toggle(payload: StatusPayload, db: Session = Depends(get_db)
     idx = zyklus.index(fzg.status) if fzg.status in zyklus else 0
     fzg.status = zyklus[(idx + 1) % len(zyklus)]
     db.commit()
+    asyncio.create_task(_notify_sse())
     return {"status": fzg.status}
 
 
 @app.post("/api/alarm/beenden")
-def alarm_beenden(db: Session = Depends(get_db)):
+async def alarm_beenden(db: Session = Depends(get_db)):
     _alarm_beenden_intern(db)
+    asyncio.create_task(_notify_sse())
     return RedirectResponse("/", status_code=303)
 
 
