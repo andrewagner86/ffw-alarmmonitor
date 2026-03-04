@@ -153,9 +153,7 @@
     {% if aktiver_alarm %}
     <li><a href="/einsatz" class="hdr-btn einsatz-link" target="_blank">🚨 Einsatzübersicht</a></li>
     <li>
-      <form method="post" action="/api/alarm/beenden" style="display:inline">
-        <button type="submit" class="hdr-btn alarm-end">✕ Alarm beenden</button>
-      </form>
+      <button class="hdr-btn alarm-end" onclick="alarmBeenden(this)">✕ Alarm beenden</button>
     </li>
     {% endif %}
     <li><button class="hdr-btn" id="sort-toggle" onclick="toggleSortMode()">⠿ Reihenfolge</button></li>
@@ -293,6 +291,8 @@ document.addEventListener('click', function(e) {
 
 function toggleStatus(id, el) {
   if (sortMode) return;
+  // SSE-Reload für diesen Client unterdrücken – DOM wird direkt per JS aktualisiert
+  _sseReloadSuppressed = true;
   fetch('/api/fahrzeug/status-toggle', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -310,6 +310,10 @@ function toggleStatus(id, el) {
       label.textContent = STATUS_LABEL[neu];
     }
     updateCounts();
+  })
+  .finally(() => {
+    // Unterdrückung nach kurzem Delay aufheben (SSE-Event ist dann bereits verarbeitet)
+    setTimeout(() => { _sseReloadSuppressed = false; }, 500);
   });
 }
 
@@ -606,6 +610,35 @@ function epModalAbbrechen() {
 document.getElementById('ep-modal').addEventListener('click', function(e) {
   if (e.target === this) epModalAbbrechen();
 });
+
+// ── Alarm beenden ─────────────────────────────────────────────────────────────
+async function alarmBeenden(btn) {
+  btn.disabled = true;
+  await fetch('/api/alarm/beenden', { method: 'POST' });
+  // Kurz warten damit SSE-Event nicht zusätzlich reload auslöst
+  _sseReloadSuppressed = true;
+  location.reload();
+}
+
+// ── SSE: Seite bei Statusänderungen automatisch neu laden
+let _sseReloadSuppressed = false;
+function connectIndexSSE() {
+  const es = new EventSource('/api/einsatz/stream');
+  const reloadIfIdle = () => {
+    if (_sseReloadSuppressed) return;
+    const modal = document.getElementById('ep-modal');
+    if (modal && modal.style.display !== 'none') return;
+    if (typeof epCountdownTimer !== 'undefined' && epCountdownTimer) return;
+    location.reload();
+  };
+  es.addEventListener('alarm',  reloadIfIdle);
+  es.addEventListener('status', reloadIfIdle);
+  es.onerror = () => {
+    es.close();
+    setTimeout(connectIndexSSE, 3000);
+  };
+}
+connectIndexSSE();
 </script>
 
 </body>

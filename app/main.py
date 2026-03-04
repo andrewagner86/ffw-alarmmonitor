@@ -130,11 +130,14 @@ app = FastAPI(title="FFW Alarmmonitor")
 
 _sse_subscribers: list[asyncio.Queue] = []
 
-async def _notify_sse():
-    """Sendet ein Update-Event an alle verbundenen SSE-Clients."""
+async def _notify_sse(event: str = "status"):
+    """Sendet ein benanntes Event an alle verbundenen SSE-Clients.
+    event='alarm'  → Alarm gestartet oder beendet
+    event='status' → Fahrzeugstatus geändert
+    """
     for q in list(_sse_subscribers):
         try:
-            q.put_nowait("update")
+            q.put_nowait(event)
         except asyncio.QueueFull:
             pass
 
@@ -197,7 +200,9 @@ def alarm_view(alarmierungstyp_id: int, request: Request, db: Session = Depends(
         raise HTTPException(status_code=404)
 
     alarm = aktiver_alarm(db)
-    if alarm and alarm.alarmierungstyp_id != alarmierungstyp_id:
+    if not alarm:
+        return RedirectResponse("/", status_code=302)
+    if alarm.alarmierungstyp_id != alarmierungstyp_id:
         return RedirectResponse(f"/alarm/{alarm.alarmierungstyp_id}", status_code=302)
 
     return templates.TemplateResponse("index.html", {
@@ -338,7 +343,7 @@ async def alarm_starten(payload: AlarmStartenPayload, db: Session = Depends(get_
     )
     db.add(alarm)
     db.commit()
-    asyncio.create_task(_notify_sse())
+    asyncio.create_task(_notify_sse("alarm"))
     return {"ok": True, "alarmierungstyp_id": payload.alarmierungstyp_id, "warnungen": warnungen}
 
 
@@ -361,16 +366,25 @@ async def einsatz_stream(request: Request):
     _sse_subscribers.append(queue)
 
     async def event_generator():
+        import time
+        last_ping = time.monotonic()
         try:
-            yield "data: update\n\n"           # initiales Event beim Verbindungsaufbau
+            yield "event: connected\ndata: ok\n\n"  # initiales Handshake-Event, löst kein Reload aus
             while True:
                 if await request.is_disconnected():
                     break
                 try:
-                    await asyncio.wait_for(queue.get(), timeout=30)
-                    yield "data: update\n\n"
+                    # Kurzes Timeout (1s) damit der HTTP-Connection-Pool nicht blockiert wird.
+                    # Ohne das würde ein langer Timeout alle freien Verbindungs-Slots belegen
+                    # und andere Requests (z.B. /api/alarm/beenden) bis zu 30s warten lassen.
+                    msg = await asyncio.wait_for(queue.get(), timeout=1)
+                    yield f"event: {msg}\ndata: update\n\n"
+                    last_ping = time.monotonic()
                 except asyncio.TimeoutError:
-                    yield ": ping\n\n"          # Keep-alive alle 30s
+                    # Keep-alive ping nur alle 25s senden
+                    if time.monotonic() - last_ping >= 25:
+                        yield ": ping\n\n"
+                        last_ping = time.monotonic()
         finally:
             if queue in _sse_subscribers:
                 _sse_subscribers.remove(queue)
@@ -445,8 +459,8 @@ async def fahrzeug_status_toggle(payload: StatusPayload, db: Session = Depends(g
 @app.post("/api/alarm/beenden")
 async def alarm_beenden(db: Session = Depends(get_db)):
     _alarm_beenden_intern(db)
-    asyncio.create_task(_notify_sse())
-    return RedirectResponse("/", status_code=303)
+    asyncio.create_task(_notify_sse("alarm"))
+    return {"ok": True}
 
 
 # ─── API: Reihenfolge ─────────────────────────────────────────────────────────

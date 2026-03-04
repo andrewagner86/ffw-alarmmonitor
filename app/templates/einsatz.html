@@ -163,16 +163,16 @@ async function refresh() {
 // Server-Sent Events: Push-Updates vom Server
 function connectSSE() {
   const es = new EventSource('/api/einsatz/stream');
-  es.onmessage = () => refresh();
+  es.addEventListener('alarm',  () => refresh());
+  es.addEventListener('status', () => refresh());
   es.onerror = () => {
     es.close();
-    // Reconnect nach 3 Sekunden
     setTimeout(connectSSE, 3000);
   };
 }
 
-refresh();
-connectSSE();
+refresh();    // initialer Datenabruf beim Seitenaufruf
+connectSSE(); // SSE-Verbindung aufbauen
 </script>
 </body>
 </html>
