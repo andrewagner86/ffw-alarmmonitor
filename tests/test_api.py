@@ -34,12 +34,21 @@ from app.main import (
 
 # ─── Test-Datenbank ───────────────────────────────────────────────────────────
 
+from sqlalchemy import event as sa_event
+
 TEST_ENGINE = create_engine(
     "sqlite:///:memory:",
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )
 TestSessionLocal = sessionmaker(bind=TEST_ENGINE)
+
+# SQLite: FK-Constraints aktivieren (sonst werden CASCADE-Deletes ignoriert)
+@sa_event.listens_for(TEST_ENGINE, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 
 def override_get_db():
@@ -71,11 +80,14 @@ class BaseTestCase(unittest.TestCase):
         """Leert alle Tabellen vor jedem einzelnen Test."""
         db = TestSessionLocal()
         try:
+            # Reihenfolge beachten: FK-Constraints (auch in SQLite mit PRAGMA foreign_keys=ON)
             db.query(AktivAlarm).delete()
             db.query(AlarmierungsplanFahrzeug).delete()
             db.query(Alarmierungsplan).delete()
             db.query(Alarmierungsstichwort).delete()
             db.query(Alarmierungstyp).delete()
+            # Ersatzfahrzeug-Verknüpfungen via raw SQL löschen (M:N self-ref)
+            db.execute(__import__("sqlalchemy").text("DELETE FROM fahrzeug_ersatz"))
             db.query(Fahrzeug).delete()
             db.query(FahrzeugGruppe).delete()
             db.query(Territorium).delete()
@@ -102,8 +114,10 @@ class BaseTestCase(unittest.TestCase):
         return t
 
     def _create_alarmierungstyp(self, name="BRAND", stichworte=""):
+        # Backend expects stichwort_text as list; split newline-separated string
+        stichwort_list = [s.strip() for s in stichworte.split("\n") if s.strip()]
         r = self.client.post("/admin/alarmierungstyp",
-                             data={"name": name, "beschreibung": "", "stichworte": stichworte})
+                             data={"name": name, "beschreibung": "", "stichwort_text": stichwort_list})
         self.assertEqual(r.status_code, 200)
         db = TestSessionLocal()
         at = db.query(Alarmierungstyp).filter_by(name=name).first()
