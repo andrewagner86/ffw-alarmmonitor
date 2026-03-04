@@ -28,7 +28,7 @@ class AlarmierungsplanFahrzeug(Base):
     alarmierungsplan_id = Column(Integer, ForeignKey("einsatzplaene.id", ondelete="CASCADE"), primary_key=True)
     fahrzeug_id         = Column(Integer, ForeignKey("fahrzeuge.id",     ondelete="CASCADE"), primary_key=True)
     ziel_status         = Column(String(30), default="alarmiert", nullable=False)
-    fahrzeug            = relationship("Fahrzeug")
+    fahrzeug            = relationship("Fahrzeug", lazy="joined")
 
 fahrzeug_ersatz = Table(
     "fahrzeug_ersatz", Base.metadata,
