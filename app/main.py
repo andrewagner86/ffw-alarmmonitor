@@ -120,15 +120,6 @@ class AktivAlarm(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# Bestehende DBs: ziel_status-Spalte nachrüsten falls noch nicht vorhanden
-try:
-    with engine.connect() as conn:
-        conn.execute(__import__("sqlalchemy").text(
-            "ALTER TABLE alarmierungsplan_fahrzeuge ADD COLUMN ziel_status VARCHAR(30) NOT NULL DEFAULT 'alarmiert'"
-        ))
-        conn.commit()
-except Exception:
-    pass  # Spalte existiert bereits
 
 # ─── App ──────────────────────────────────────────────────────────────────────
 
