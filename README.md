@@ -1,6 +1,9 @@
-# 🔥 FFW Alarmmonitor
+# 🔥 Feuerwehr Alarmierungs-App
 
 Webbasierte Alarmierungssoftware für Feuerwehren zur Verwaltung und Alarmierung von Fahrzeugen auf Basis von Alarmierungstypen und Alarmierungsplänen.
+
+[![Test, Build & Publish](https://github.com/andrewagner86/ffw-alarmmonitor/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/andrewagner86/ffw-alarmmonitor/actions/workflows/docker-publish.yml)
+[![Docker Hub](https://img.shields.io/docker/v/andrewagner86/ffw-alarmmonitor?label=Docker%20Hub)](https://hub.docker.com/r/andrewagner86/ffw-alarmmonitor)
 
 ---
 
@@ -26,6 +29,7 @@ Webbasierte Alarmierungssoftware für Feuerwehren zur Verwaltung und Alarmierung
   - Stichwort-Auswahl (wenn mehrere Stichworte in den Plänen hinterlegt)
   - Vorbelegt mit dem als Standard markierten Plan
   - Fahrzeugvorschau zeigt die tatsächlich alarmierten Fahrzeuge (inkl. Ersatz)
+  - Farbkodierung: 🟢 grün = Alarmiert, 🟡 gelb = Bereitschaft
   - Warnungen für nicht verfügbare Fahrzeuge werden sofort angezeigt
   - **Automatische Alarmierung nach 10 Sekunden** — Countdown auf dem Alarmieren-Button; bei Auswahländerung startet der Countdown neu
 
@@ -46,30 +50,37 @@ Webbasierte Alarmierungssoftware für Feuerwehren zur Verwaltung und Alarmierung
 
 ### Admin-Bereich (`/admin`)
 
-Startet direkt auf der **Alarmierungspläne**-Übersicht.
+Startet direkt auf der **Alarmierungspläne**-Übersicht. Fehlermeldungen aus dem Backend werden direkt im Formular angezeigt.
 
-**Alarmierungspläne** (`/admin/alarmierungsplaene`)
+**Alarmierungspläne** (`/admin/alarmierungsplan`)
 - Kombination aus Alarmierungstyp, optionalem Stichwort und Territorium
-- Fahrzeuge dem Plan zuordnen (Mehrfachauswahl)
+- Fahrzeuge dem Plan zuordnen mit visuellem Tag-Picker (klicken zum Durchschalten)
+- Pro Fahrzeug kann der Zielstatus festgelegt werden: 🟢 **Alarmiert** oder 🟡 **Bereitschaft**
 - Einen Plan als Standard markieren (automatisch vorausgewählt im Dialog)
 - Jede Kombination (Alarmierungstyp + Stichwort + Territorium) ist eindeutig
 
-**Fahrzeuge** (`/admin/fahrzeuge`)
+**Fahrzeuge** (`/admin/fahrzeug`)
 - Name, Kennzeichen (optional), Funkkennung (optional), Typ
 - Fahrzeuggruppe zuweisen
-- Ersatzfahrzeuge aus dem Fahrzeugbestand auswählen
+- Ersatzfahrzeuge aus dem Fahrzeugbestand auswählen (alphabetisch sortiert)
 
-**Fahrzeuggruppen** (`/admin/gruppen`)
+**Fahrzeuggruppen** (`/admin/gruppe`)
 - Gruppen anlegen, umbenennen, löschen
 - Reihenfolge der Gruppen mit ▲/▼-Buttons anpassen
 
-**Territorien** (`/admin/territorien`)
+**Territorien** (`/admin/territorium`)
 - Territorien anlegen, umbenennen, löschen
 - Wird ein Territorium gelöscht, werden alle zugehörigen Alarmierungspläne automatisch mitgelöscht
 
-**Alarmierungstypen** (`/admin/alarmierungstypen`)
+**Alarmierungstypen** (`/admin/alarmierungstyp`)
 - Name und Beschreibung
 - Alarmierungsstichworte pro Typ (eines pro Zeile)
+- Umbenennen von Stichworten wird unterstützt — referenzierte Stichworte (in Alarmierungsplänen verwendet) werden beim Bearbeiten nicht gelöscht
+
+**Datenverwaltung** (`/admin/datenverwaltung`)
+- **Export**: Alle Stammdaten als JSON-Datei herunterladen
+- **Import**: Zuvor exportierte JSON-Datei einlesen; bestehende Daten bleiben erhalten, nur neue Einträge werden hinzugefügt
+- **Zurücksetzen**: Alle erfassten Daten nach doppelter Sicherheitsabfrage löschen
 
 ---
 
@@ -97,12 +108,13 @@ alarmierungsstichworte
 
 einsatzplaene
   id, alarmierungstyp_id → alarmierungstypen (CASCADE)
-  stichwort_id → alarmierungsstichworte (RESTRICT, nullable)
-  territorium_id → territorien (CASCADE)
+  stichwort_id            → alarmierungsstichworte (RESTRICT, nullable)
+  territorium_id          → territorien (CASCADE)
   ist_standard
   UNIQUE (alarmierungstyp_id, stichwort_id, territorium_id)
 
 alarmierungsplan_fahrzeuge   ← M:N Alarmierungsplan ↔ Fahrzeug
+  alarmierungsplan_id, fahrzeug_id, ziel_status (alarmiert | bereitschaft)
 
 aktiv_alarme
   id, alarmierungstyp_id, stichwort_id, territorium_id
@@ -113,12 +125,11 @@ aktiv_alarme
 
 ## REST API
 
-Die API ist vollständig REST-konform. Ressourcen werden über einheitliche Collection-URLs verwaltet:
+Alle Ressourcen werden über einheitliche Singular-URLs verwaltet.
 
 | Methode | URL | Beschreibung |
 |---|---|---|
 | `GET` | `/` | Alarmübersicht |
-| `GET` | `/alarm/{id}` | Alarmansicht für Alarmierungstyp |
 | `GET` | `/einsatz` | Live-Einsatzübersicht |
 | `GET` | `/api/einsatz` | Einsatzdaten als JSON |
 | `GET` | `/api/alarmierungstyp/{id}/einsatzplaene` | Alarmierungspläne mit Fahrzeugvorschau |
@@ -128,29 +139,33 @@ Die API ist vollständig REST-konform. Ressourcen werden über einheitliche Coll
 | `POST` | `/api/fahrzeug/status-toggle` | Fahrzeugstatus wechseln (JSON-Body) |
 | `POST` | `/api/fahrzeug/reihenfolge` | Reihenfolge speichern (JSON-Body) |
 | `POST` | `/api/gruppe/{id}/move` | Gruppenreihenfolge anpassen |
-| `GET` | `/admin` | → Weiterleitung auf `/admin/alarmierungsplaene` |
-| `GET` | `/admin/fahrzeuge` | Admin-Ansicht Fahrzeuge |
-| `POST` | `/admin/fahrzeuge` | Fahrzeug anlegen |
+| `GET` | `/admin` | → Weiterleitung auf `/admin/alarmierungsplan` |
+| `GET` | `/admin/fahrzeug` | Admin-Ansicht Fahrzeuge |
+| `POST` | `/admin/fahrzeug` | Fahrzeug anlegen |
 | `PUT` | `/admin/fahrzeug/{id}` | Fahrzeug bearbeiten |
 | `DELETE` | `/admin/fahrzeug/{id}` | Fahrzeug löschen |
-| `GET` | `/admin/gruppen` | Admin-Ansicht Gruppen |
-| `POST` | `/admin/gruppen` | Gruppe anlegen |
+| `GET` | `/admin/gruppe` | Admin-Ansicht Gruppen |
+| `POST` | `/admin/gruppe` | Gruppe anlegen |
 | `PUT` | `/admin/gruppe/{id}` | Gruppe bearbeiten |
 | `DELETE` | `/admin/gruppe/{id}` | Gruppe löschen |
-| `GET` | `/admin/territorien` | Admin-Ansicht Territorien |
-| `POST` | `/admin/territorien` | Territorium anlegen |
+| `GET` | `/admin/territorium` | Admin-Ansicht Territorien |
+| `POST` | `/admin/territorium` | Territorium anlegen |
 | `PUT` | `/admin/territorium/{id}` | Territorium bearbeiten |
 | `DELETE` | `/admin/territorium/{id}` | Territorium löschen |
-| `GET` | `/admin/alarmierungsplaene` | Admin-Ansicht Alarmierungspläne |
-| `POST` | `/admin/alarmierungsplaene` | Alarmierungsplan anlegen |
+| `GET` | `/admin/alarmierungsplan` | Admin-Ansicht Alarmierungspläne |
+| `POST` | `/admin/alarmierungsplan` | Alarmierungsplan anlegen |
 | `PUT` | `/admin/alarmierungsplan/{id}` | Alarmierungsplan bearbeiten |
 | `DELETE` | `/admin/alarmierungsplan/{id}` | Alarmierungsplan löschen |
-| `GET` | `/admin/alarmierungstypen` | Admin-Ansicht Alarmierungstypen |
-| `POST` | `/admin/alarmierungstypen` | Alarmierungstyp anlegen |
+| `GET` | `/admin/alarmierungstyp` | Admin-Ansicht Alarmierungstypen |
+| `POST` | `/admin/alarmierungstyp` | Alarmierungstyp anlegen |
 | `PUT` | `/admin/alarmierungstyp/{id}` | Alarmierungstyp bearbeiten |
 | `DELETE` | `/admin/alarmierungstyp/{id}` | Alarmierungstyp löschen |
+| `GET` | `/admin/datenverwaltung` | Datenverwaltung |
+| `GET` | `/admin/datenverwaltung/export` | Datenexport als JSON-Datei |
+| `POST` | `/admin/datenverwaltung/import` | Datenimport aus JSON-Datei |
+| `POST` | `/admin/datenverwaltung/reset` | Alle Daten löschen |
 
-Alle schreibenden Endpunkte geben `{"ok": true}` zurück. Fehler werden als HTTP-Statuscodes signalisiert (404 bei nicht gefundener Ressource, 400/409 bei Konflikten).
+Alle schreibenden Endpunkte geben `{"ok": true}` zurück. Fehler werden als HTTP-Statuscodes mit `{"detail": "..."}` signalisiert.
 
 ---
 
@@ -158,7 +173,7 @@ Alle schreibenden Endpunkte geben `{"ok": true}` zurück. Fehler werden als HTTP
 
 | Komponente | Version |
 |---|---|
-| Python | 3.11 |
+| Python | 3.12 |
 | FastAPI | 0.115 |
 | SQLAlchemy | 2.0 |
 | Jinja2 | 3.1 |
@@ -195,6 +210,34 @@ Daten bleiben im Docker-Volume `postgres_data` erhalten.
 docker compose down -v && docker compose up -d --build
 ```
 
+Alternativ kann die Datenbank über den Admin-Bereich unter **Datenverwaltung → Datenbank zurücksetzen** geleert werden.
+
+---
+
+## CI/CD
+
+Der GitHub Actions Workflow `.github/workflows/docker-publish.yml` führt bei jedem Push auf `main` und bei Pull Requests automatisch Folgendes aus:
+
+1. **Tests** — alle Unit-Tests werden mit pytest ausgeführt, Coverage-Report wird als Artefakt gespeichert
+2. **Docker Build & Push** — Image wird gebaut und auf Docker Hub veröffentlicht (nur bei Push auf `main` oder bei versionierten Tags, nicht bei PRs)
+
+### Tagging-Strategie
+
+| Auslöser | Docker-Tags |
+|---|---|
+| Push auf `main` | `latest`, `sha-<commit>` |
+| Git-Tag `v1.2.3` | `1.2.3`, `1.2`, `1`, `sha-<commit>` |
+| Pull Request | kein Push, nur Test |
+
+### Secrets einrichten
+
+Im GitHub-Repository unter **Settings → Secrets and variables → Actions** müssen folgende Secrets hinterlegt werden:
+
+| Secret | Inhalt |
+|---|---|
+| `DOCKERHUB_USERNAME` | Docker Hub Benutzername |
+| `DOCKERHUB_TOKEN` | Docker Hub Access Token (nicht das Passwort) |
+
 ---
 
 ## Tests
@@ -204,7 +247,7 @@ Unit-Tests für alle API-Endpunkte befinden sich in `tests/test_api.py`. Sie ver
 ### Abhängigkeiten installieren
 
 ```bash
-pip install fastapi httpx sqlalchemy jinja2 python-multipart
+pip install fastapi httpx sqlalchemy jinja2 python-multipart pytest pytest-cov
 ```
 
 ### Tests ausführen
@@ -212,6 +255,9 @@ pip install fastapi httpx sqlalchemy jinja2 python-multipart
 ```bash
 # Mit pytest (empfohlen):
 python -m pytest tests/test_api.py -v
+
+# Mit Coverage:
+python -m pytest tests/test_api.py -v --cov=app --cov-report=term-missing
 
 # Mit unittest:
 python -m unittest tests.test_api -v
@@ -239,17 +285,20 @@ python -m unittest tests.test_api -v
 ## Projektstruktur
 
 ```
-feuerwehr-app/
+ffw-alarmmonitor/
+├── .github/
+│   └── workflows/
+│       └── docker-publish.yml  # CI/CD: Test → Build → Push
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
 ├── README.md
 ├── tests/
-│   └── test_api.py       # Unit-Tests (62 Tests)
+│   └── test_api.py             # Unit-Tests (62 Tests, SQLite in-memory)
 └── app/
-    ├── main.py
+    ├── main.py                 # FastAPI-App, Routen, Datenbankmodelle
     └── templates/
-        ├── index.html    # Alarmübersicht
-        ├── einsatz.html  # Live-Einsatzübersicht
-        └── admin.html    # Admin-Bereich
+        ├── index.html          # Alarmübersicht
+        ├── einsatz.html        # Live-Einsatzübersicht
+        └── admin.html          # Admin-Bereich
 ```
