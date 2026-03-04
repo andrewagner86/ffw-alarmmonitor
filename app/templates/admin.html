@@ -29,7 +29,7 @@
   .nav-links { display: flex; gap: 1.5rem; list-style: none; }
   .nav-links a { color: var(--muted); text-decoration: none; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; transition: color 0.2s; }
   .nav-links a:hover { color: var(--text); }
-  .page { max-width: 1100px; margin: 0 auto; padding: 2.5rem 2rem; }
+  .page { max-width: 1400px; margin: 0 auto; padding: 2.5rem 2rem; }
   .page-title { font-family: 'Barlow Condensed', sans-serif; font-size: 2rem; font-weight: 900; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.25rem; }
   .page-subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
   .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 2rem; }
@@ -49,6 +49,7 @@
     font-size: 0.9rem; transition: border-color 0.15s; margin-bottom: 1rem;
   }
   textarea { resize: vertical; min-height: 80px; }
+  .form-error { display: none; }
   select option { background: var(--surface2); }
   input[type="text"]:focus, select:focus, textarea:focus { outline: none; border-color: var(--red); }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
@@ -56,7 +57,7 @@
   .checkbox-item { display: flex; align-items: center; gap: 10px; padding: 0.4rem 0.5rem; border-radius: 5px; cursor: pointer; transition: background 0.1s; }
   .checkbox-item:hover { background: rgba(255,255,255,0.05); }
   .checkbox-item input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--red); cursor: pointer; }
-  .checkbox-item span { font-size: 0.88rem; font-weight: 500; }
+  .checkbox-item span { font-size: 0.88rem; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text); }
   .checkbox-item small { color: var(--muted); font-size: 0.75rem; margin-left: auto; }
   .btn { display: inline-flex; align-items: center; gap: 6px; padding: 0.6rem 1.25rem; border: none; border-radius: 7px; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: all 0.15s; text-decoration: none; }
   .btn-primary { background: var(--red); color: white; }
@@ -115,6 +116,7 @@
     <a href="/admin/territorium" class="tab-btn {% if tab == 'territorien' %}active{% endif %}">🌍 Territorien</a>
     <a href="/admin/alarmierungstyp" class="tab-btn {% if tab == 'alarmierungstypen' %}active{% endif %}">⚡ Alarmierungstypen</a>
     <a href="/admin/alarmierungsplan" class="tab-btn {% if tab == 'alarmierungsplaene' %}active{% endif %}">📋 Alarmierungspläne</a>
+    <a href="/admin/datenverwaltung" class="tab-btn {% if tab == 'datenverwaltung' %}active{% endif %}">🗄️ Datenverwaltung</a>
   </div>
 
 
@@ -157,7 +159,7 @@
           </select>
           <label>Ersatzfahrzeuge (bei Ausfall)</label>
           <div class="checkbox-group" id="f-ersatzfahrzeuge">
-            {% for fz in fahrzeuge %}
+            {% for fz in fahrzeuge|sort(attribute="name") %}
             <label class="checkbox-item">
               <input type="checkbox" name="ersatz_ids" value="{{ fz.id }}" data-efid="{{ fz.id }}">
               <span>{{ fz.name }}</span>
@@ -166,6 +168,7 @@
             <div style="color:var(--muted);font-size:0.8rem;padding:0.5rem">Keine weiteren Fahrzeuge vorhanden</div>
             {% endfor %}
           </div>
+          <div class="form-error" style="display:none;padding:0.5rem 0.75rem;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#F87171;font-size:0.85rem;margin-bottom:0.5rem"></div>
           <div class="form-actions">
             <button type="submit" id="fahrzeug-submit-btn" class="btn btn-primary">+ Fahrzeug anlegen</button>
             <button type="button" id="fahrzeug-abbrechen-btn" class="btn btn-ghost" style="display:none" onclick="fahrzeugAbbrechen()">✕ Abbrechen</button>
@@ -245,6 +248,7 @@
         <form id="gruppe-form" method="post" action="/admin/gruppe" onsubmit="return restSubmit(event, 'gruppe-form', '/admin/gruppe')">
           <label>Fahrzeuggruppenname</label>
           <input type="text" id="g-name" name="name" placeholder="z.B. Löschzug, Hilfeleistung" required>
+          <div class="form-error" style="display:none;padding:0.5rem 0.75rem;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#F87171;font-size:0.85rem;margin-bottom:0.5rem"></div>
           <div class="form-actions">
             <button type="submit" id="gruppe-submit-btn" class="btn btn-primary">+ Fahrzeuggruppe anlegen</button>
             <button type="button" id="gruppe-abbrechen-btn" class="btn btn-ghost" style="display:none" onclick="gruppeAbbrechen()">✕ Abbrechen</button>
@@ -318,6 +322,7 @@
           <div id="at-stichwort-liste" style="display:flex;flex-direction:column;gap:0.35rem;margin-bottom:0.4rem"></div>
           <button type="button" onclick="atStichwortZeileHinzufuegen()" class="btn btn-ghost btn-sm" style="align-self:flex-start;margin-bottom:0.75rem">+ Stichwort hinzufügen</button>
           <textarea name="stichworte" id="at-stichworte-hidden" style="display:none"></textarea>
+          <div class="form-error" style="display:none;padding:0.5rem 0.75rem;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#F87171;font-size:0.85rem;margin-bottom:0.5rem"></div>
           <div class="form-actions">
             <button type="submit" id="at-submit-btn" class="btn btn-primary">+ Alarmierungstyp anlegen</button>
             <button type="button" id="at-abbrechen-btn" class="btn btn-ghost" style="display:none" onclick="atAbbrechen()">✕ Abbrechen</button>
@@ -389,6 +394,7 @@
           <input type="text" id="t-name" name="name" placeholder="z.B. Ortschaft Nord" required>
           <label>Beschreibung (optional)</label>
           <input type="text" id="t-beschreibung" name="beschreibung" placeholder="z.B. Nördlicher Bereich">
+          <div class="form-error" style="display:none;padding:0.5rem 0.75rem;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#F87171;font-size:0.85rem;margin-bottom:0.5rem"></div>
           <div class="form-actions">
             <button type="submit" id="territorium-submit-btn" class="btn btn-primary">+ Territorium anlegen</button>
             <button type="button" id="territorium-abbrechen-btn" class="btn btn-ghost" style="display:none" onclick="territoriumAbbrechen()">✕ Abbrechen</button>
@@ -448,7 +454,7 @@
         <span id="ep-form-title">Alarmierungsplan anlegen</span>
       </div>
       <div class="card-body">
-        <form id="ep-form" method="post" action="/admin/alarmierungsplan" onsubmit="return restSubmit(event, 'ep-form', '/admin/alarmierungsplan')">
+        <form id="ep-form" method="post" action="/admin/alarmierungsplan" onsubmit="return epFormSubmit(event)">
 
           <label>Alarmierungstyp</label>
           <select id="ep-alarmierungstyp" name="alarmierungstyp_id" required onchange="loadStichworte(this.value)">
@@ -472,22 +478,24 @@
           </select>
 
           <label>Fahrzeuge</label>
-          <div class="checkbox-group" id="ep-fahrzeuge">
-            {% for f in fahrzeuge %}
-            <label class="checkbox-item">
-              <input type="checkbox" name="fahrzeug_ids" value="{{ f.id }}" data-fid="{{ f.id }}">
-              <span>{{ f.name }}</span>
-            </label>
+          <div id="ep-fahrzeuge" style="display:flex;flex-wrap:wrap;gap:0.3rem;padding:0.4rem;max-height:220px;overflow-y:auto;overflow-x:hidden;border:1px solid var(--border);border-radius:6px;background:var(--surface2)">
+            {% for f in fahrzeuge|sort(attribute="name") %}
+            <span class="ep-fzg-tag" data-fid="{{ f.id }}" data-state="0"
+                  style="cursor:pointer;user-select:none;padding:0.25rem 0.65rem;border-radius:5px;font-size:0.82rem;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--muted);transition:all 0.15s;text-align:center;width:calc(50% - 0.15rem);box-sizing:border-box;min-width:0">
+              {{ f.name }}
+              <input type="hidden" class="ep-fzg-hidden" name="fahrzeug_eintraege" disabled>
+            </span>
             {% else %}
             <div style="color:var(--muted);font-size:0.8rem;padding:0.5rem">Keine Fahrzeuge vorhanden</div>
             {% endfor %}
           </div>
 
-          <label class="checkbox-item" style="margin-bottom:1rem;gap:10px">
+          <label class="checkbox-item" style="margin-bottom:1rem;gap:10px;margin-top:0.75rem">
             <input type="checkbox" id="ep-standard" name="ist_standard" value="true" style="width:16px;height:16px;accent-color:var(--red)">
             <span style="font-size:0.88rem;font-weight:600">Standard-Alarmierung für diesen Alarmierungstyp</span>
           </label>
 
+          <div class="form-error" style="display:none;padding:0.5rem 0.75rem;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#F87171;font-size:0.85rem;margin-bottom:0.5rem"></div>
           <div class="form-actions">
             <button type="submit" id="ep-submit-btn" class="btn btn-primary">+ Alarmierungsplan anlegen</button>
             <button type="button" id="ep-abbrechen-btn" class="btn btn-ghost" style="display:none" onclick="epAbbrechen()">✕ Abbrechen</button>
@@ -503,9 +511,9 @@
         <thead>
           <tr>
             <th>Alarmierungstyp</th>
-            <th>Stichwort</th>
-            <th>Territorium</th>
-            <th>Fahrzeuge</th>
+            <th style="width:10%">Stichwort</th>
+            <th style="width:22%">Territorium</th>
+            <th style="width:28%">Fahrzeuge</th>
             <th>STD</th>
             <th>Aktionen</th>
           </tr>
@@ -518,8 +526,8 @@
             <td>{% if ep.territorium %}<span class="tag">{{ ep.territorium.name }}</span>{% else %}<span style="color:var(--muted)">—</span>{% endif %}</td>
             <td>
               <div class="tag-list">
-                {% for f in ep.fahrzeuge %}<span class="tag">{{ f.name }}</span>{% endfor %}
-                {% if not ep.fahrzeuge %}<span style="color:var(--muted);font-size:0.8rem">—</span>{% endif %}
+                {% for pf in ep.plan_fahrzeuge %}{% if pf.ziel_status == "bereitschaft" %}<span class="tag" style="background:rgba(234,179,8,0.15);border-color:rgba(234,179,8,0.4);color:#FDE047">{{ pf.fahrzeug.name }}</span>{% else %}<span class="tag" style="background:rgba(34,197,94,0.15);border-color:rgba(34,197,94,0.4);color:#4ADE80">{{ pf.fahrzeug.name }}</span>{% endif %}{% endfor %}
+                {% if not ep.plan_fahrzeuge %}<span style="color:var(--muted);font-size:0.8rem">—</span>{% endif %}
               </div>
             </td>
             <td>{% if ep.ist_standard %}<span style="color:#22C55E;font-size:1.1rem">✓</span>{% endif %}</td>
@@ -531,7 +539,7 @@
                   data-stichwort="{{ ep.stichwort_id or '' }}"
                   data-territorium="{{ ep.territorium_id or '' }}"
                   data-standard="{{ 'true' if ep.ist_standard else '' }}"
-                  data-fahrzeuge="{% for f in ep.fahrzeuge %}{{ f.id }}{% if not loop.last %},{% endif %}{% endfor %}"
+                  data-fahrzeuge="{% for pf in ep.plan_fahrzeuge %}{{ pf.fahrzeug_id }}:{{ pf.ziel_status }}{% if not loop.last %},{% endif %}{% endfor %}"
                  title="Bearbeiten">✏️</button>
                 <form onsubmit="return restDelete(event, '/admin/alarmierungsplan/{{ ep.id }}', 'Alarmierungsplan löschen?')">
                   <button type="submit" class="btn btn-danger" title="Löschen">🗑️</button>
@@ -545,6 +553,64 @@
       {% else %}
       <div class="empty-state">Noch keine Alarmierungspläne angelegt.</div>
       {% endif %}
+    </div>
+
+  </div>
+  {% endif %}
+
+
+  <!-- ══════════ TAB: DATENVERWALTUNG ══════════ -->
+  {% if tab == 'datenverwaltung' %}
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.5rem;align-items:start">
+
+    <!-- Export -->
+    <div class="card">
+      <div class="card-header">📤 Daten exportieren</div>
+      <div style="padding:1.25rem;display:flex;flex-direction:column;gap:1rem">
+        <p style="color:var(--muted);font-size:0.9rem;margin:0">
+          Exportiert alle Stammdaten (Fahrzeuge, Gruppen, Territorien, Alarmierungstypen und -pläne)
+          als JSON-Datei. Alarmdaten werden nicht exportiert.
+        </p>
+        <a href="/admin/datenverwaltung/export" class="btn btn-primary" style="text-align:center">
+          ⬇ Export herunterladen
+        </a>
+      </div>
+    </div>
+
+    <!-- Import -->
+    <div class="card">
+      <div class="card-header">📥 Daten importieren</div>
+      <div style="padding:1.25rem;display:flex;flex-direction:column;gap:1rem">
+        <p style="color:var(--muted);font-size:0.9rem;margin:0">
+          Importiert eine zuvor exportierte JSON-Datei. Bestehende Daten bleiben erhalten –
+          es werden nur neue Einträge hinzugefügt.
+        </p>
+        <form id="import-form" onsubmit="return importSubmit(event)">
+          <input type="file" id="import-file" accept=".json" style="display:none">
+          <div onclick="document.getElementById('import-file').click()" id="import-file-label"
+               style="display:flex;align-items:center;gap:0.75rem;padding:0.55rem 0.85rem;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--muted);font-size:0.9rem;cursor:pointer;margin-bottom:0.75rem;transition:border-color 0.15s">
+            <span style="font-size:1.1rem">📂</span>
+            <span id="import-file-name">Datei auswählen…</span>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%">⬆ Import starten</button>
+        </form>
+        <div id="import-result" style="display:none;padding:0.6rem 0.9rem;border-radius:6px;font-size:0.875rem"></div>
+      </div>
+    </div>
+
+    <!-- Reset -->
+    <div class="card" style="border-color:rgba(239,68,68,0.4)">
+      <div class="card-header" style="color:#F87171">⚠️ Datenbank zurücksetzen</div>
+      <div style="padding:1.25rem;display:flex;flex-direction:column;gap:1rem">
+        <p style="color:var(--muted);font-size:0.9rem;margin:0">
+          Löscht <strong style="color:#F87171">alle</strong> erfassten Daten unwiderruflich:
+          Fahrzeuge, Gruppen, Territorien, Alarmierungstypen, -pläne und Alarme.
+        </p>
+        <button class="btn" onclick="resetDatenbank()"
+                style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.5);color:#F87171;font-weight:700">
+          🗑 Alle Daten löschen
+        </button>
+      </div>
     </div>
 
   </div>
@@ -588,6 +654,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   window.fahrzeugAbbrechen = function() {
+    showFormError('fahrzeug-form', '');
     document.getElementById('fahrzeug-form').reset();
     document.querySelectorAll('#f-ersatzfahrzeuge .checkbox-item').forEach(item => item.style.display = '');
     document.getElementById('fahrzeug-form').action = '/admin/fahrzeug';
@@ -620,6 +687,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   window.gruppeAbbrechen = function() {
+    showFormError('gruppe-form', '');
     document.getElementById('gruppe-form').reset();
     document.getElementById('gruppe-form').action = '/admin/gruppe';
     document.getElementById('gruppe-form-title').textContent = 'Fahrzeuggruppe anlegen';
@@ -657,6 +725,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   window.atAbbrechen = function() {
+    showFormError('at-form', '');
     document.getElementById('at-form').reset();
     document.getElementById('at-stichwort-liste').innerHTML = '';
     document.getElementById('at-form').action = '/admin/alarmierungstyp';
@@ -673,18 +742,18 @@ document.addEventListener('DOMContentLoaded', function() {
   window.atStichwortZeileHinzufuegen = function(id, text) {
     const liste = document.getElementById('at-stichwort-liste');
     const zeile = document.createElement('div');
-    zeile.style.cssText = 'display:flex;gap:0.4rem;align-items:center';
+    zeile.style.cssText = 'display:flex;gap:0.4rem;align-items:stretch';
     zeile.dataset.sid = id || '';
     const inp = document.createElement('input');
     inp.type = 'text';
     inp.value = text || '';
     inp.placeholder = 'z.B. B1 Kleinbrand';
-    inp.style.flex = '1';
+    inp.style.flex = '1'; inp.style.marginBottom = '0';
     const rm = document.createElement('button');
     rm.type = 'button';
     rm.textContent = 'x';
     rm.className = 'btn btn-ghost btn-sm';
-    rm.style.cssText = 'padding:0 0.5rem;font-size:1.1rem;line-height:1';
+    rm.style.cssText = 'padding:0 0.75rem;font-size:1.1rem;align-self:stretch;display:flex;align-items:center';
     rm.onclick = function() { zeile.remove(); };
     zeile.appendChild(inp);
     zeile.appendChild(rm);
@@ -730,6 +799,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   window.territoriumAbbrechen = function() {
+    showFormError('territorium-form', '');
     document.getElementById('territorium-form').reset();
     document.getElementById('territorium-form').action = '/admin/territorium';
     document.getElementById('territorium-submit-btn').textContent = '+ Territorium anlegen';
@@ -738,6 +808,41 @@ document.addEventListener('DOMContentLoaded', function() {
     if (aktiveTeritoriumRow) { aktiveTeritoriumRow.classList.remove('active-row'); aktiveTeritoriumRow = null; }
   };
 
+
+
+  // ── Alarmierungsplan Fahrzeug-Zeilen ──────────────────────────────────────
+
+  const EP_STATES = [
+    { state: '0', bg: 'var(--surface)',           border: 'var(--border)',              color: 'var(--muted)',  label: '' },
+    { state: '1', bg: 'rgba(34,197,94,0.15)',     border: 'rgba(34,197,94,0.5)',        color: '#4ADE80',      label: ' ●' },
+    { state: '2', bg: 'rgba(234,179,8,0.15)',     border: 'rgba(234,179,8,0.5)',        color: '#FDE047',      label: ' ●' },
+  ];
+
+  function epTagApplyState(tag, stateIdx) {
+    const s = EP_STATES[stateIdx];
+    tag.dataset.state = s.state;
+    tag.style.background   = s.bg;
+    tag.style.borderColor  = s.border;
+    tag.style.color        = s.color;
+    const hidden = tag.querySelector('.ep-fzg-hidden');
+    if (stateIdx === 0) {
+      hidden.disabled = true;
+    } else {
+      hidden.value    = tag.dataset.fid + ':' + (stateIdx === 1 ? 'alarmiert' : 'bereitschaft');
+      hidden.disabled = false;
+    }
+  }
+
+  document.getElementById('ep-fahrzeuge').addEventListener('click', function(e) {
+    const tag = e.target.closest('.ep-fzg-tag');
+    if (!tag) return;
+    const next = (parseInt(tag.dataset.state) + 1) % 3;
+    epTagApplyState(tag, next);
+  });
+
+  window.epFormSubmit = function(event) {
+    return restSubmit(event, 'ep-form', '/admin/alarmierungsplan');
+  };
 
   // ── Alarmierungsplan ─────────────────────────────────────────────────────────────
   let aktiveEpRow = null;
@@ -764,9 +869,20 @@ document.addEventListener('DOMContentLoaded', function() {
       await loadStichworte(d.alarmierungstyp, d.stichwort);
       document.getElementById('ep-territorium').value = d.territorium || '';
       document.getElementById('ep-standard').checked = d.standard === 'true';
-      const fids = d.fahrzeuge ? d.fahrzeuge.split(',').map(Number).filter(Boolean) : [];
-      document.querySelectorAll('#ep-fahrzeuge input[type="checkbox"]').forEach(cb => {
-        cb.checked = fids.includes(parseInt(cb.dataset.fid));
+      // Parse "id:status,id:status" format into tag states
+      const fzgMap = {};
+      (d.fahrzeuge || '').split(',').forEach(entry => {
+        if (!entry) return;
+        const [id, status] = entry.split(':');
+        fzgMap[id] = status || 'alarmiert';
+      });
+      document.querySelectorAll('#ep-fahrzeuge .ep-fzg-tag').forEach(tag => {
+        const fid = tag.dataset.fid;
+        if (fid in fzgMap) {
+          epTagApplyState(tag, fzgMap[fid] === 'bereitschaft' ? 2 : 1);
+        } else {
+          epTagApplyState(tag, 0);
+        }
       });
       document.getElementById('ep-form').dataset.editId = d.id;
       document.getElementById('ep-submit-btn').textContent = '✓ Speichern';
@@ -780,13 +896,14 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   window.epAbbrechen = function() {
+    showFormError('ep-form', '');
     document.getElementById('ep-form').reset();
     document.getElementById('ep-stichwort').innerHTML = '<option value="">— keines —</option>';
     document.getElementById('ep-form').action = '/admin/alarmierungsplan';
     document.getElementById('ep-submit-btn').textContent = '+ Alarmierungsplan anlegen';
     document.getElementById('ep-abbrechen-btn').style.display = 'none';
     document.getElementById('ep-form-title').textContent = 'Alarmierungsplan anlegen';
-    document.querySelectorAll('#ep-fahrzeuge input[type="checkbox"]').forEach(cb => cb.checked = false);
+    document.querySelectorAll('#ep-fahrzeuge .ep-fzg-tag').forEach(tag => epTagApplyState(tag, 0));
     if (aktiveEpRow) { aktiveEpRow.classList.remove('active-row'); aktiveEpRow = null; }
   };
 
@@ -799,6 +916,57 @@ window.moveGruppe = function(id, direction) {
 };
 
 // ── REST helpers ─────────────────────────────────────────────────────────────
+document.getElementById('import-file').addEventListener('change', function() {
+  const name = this.files[0] ? this.files[0].name : 'Datei auswählen…';
+  document.getElementById('import-file-name').textContent = name;
+  const label = document.getElementById('import-file-label');
+  label.style.borderColor = this.files[0] ? 'var(--red)' : 'var(--border)';
+  label.style.color = this.files[0] ? 'var(--text)' : 'var(--muted)';
+});
+
+window.importSubmit = async function(event) {
+  event.preventDefault();
+  const file = document.getElementById('import-file').files[0];
+  const result = document.getElementById('import-result');
+  if (!file) {
+    result.style.display = 'block';
+    result.style.background = 'rgba(239,68,68,0.15)';
+    result.style.color = '#F87171';
+    result.textContent = 'Bitte eine JSON-Datei auswählen.';
+    return false;
+  }
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const r = await fetch('/admin/datenverwaltung/import', { method: 'POST', body: formData });
+    const data = await r.json();
+    result.style.display = 'block';
+    if (r.ok) {
+      result.style.background = 'rgba(34,197,94,0.15)';
+      result.style.color = '#4ADE80';
+      result.textContent = data.message || 'Import erfolgreich.';
+    } else {
+      result.style.background = 'rgba(239,68,68,0.15)';
+      result.style.color = '#F87171';
+      result.textContent = data.detail || 'Fehler beim Import.';
+    }
+  } catch(e) {
+    result.style.display = 'block';
+    result.style.background = 'rgba(239,68,68,0.15)';
+    result.style.color = '#F87171';
+    result.textContent = 'Netzwerkfehler beim Import.';
+  }
+  return false;
+};
+
+window.resetDatenbank = function() {
+  if (!confirm('Wirklich alle Daten unwiderruflich löschen?\n\nDieser Vorgang kann nicht rückgängig gemacht werden!')) return;
+  if (!confirm('Letzte Sicherheitsabfrage:\nAlle Fahrzeuge, Gruppen, Territorien, Alarmierungstypen, -pläne und Alarme werden gelöscht.\n\nFortfahren?')) return;
+  fetch('/admin/datenverwaltung/reset', { method: 'POST' })
+    .then(r => { if (r.ok) location.href = '/admin/datenverwaltung'; });
+};
+
+
 function restDelete(event, url, msg) {
   event.preventDefault();
   if (!confirm(msg)) return false;
@@ -807,15 +975,33 @@ function restDelete(event, url, msg) {
   return false;
 }
 
+function showFormError(formId, msg) {
+  const form = document.getElementById(formId);
+  const err = form.querySelector('.form-error');
+  if (!err) return;
+  err.textContent = msg;
+  err.style.display = msg ? 'block' : 'none';
+}
+
 function restSubmit(event, formId, baseUrl) {
   event.preventDefault();
   const form = document.getElementById(formId);
+  showFormError(formId, '');
   const editId = form.dataset.editId;
   const method = editId ? 'PUT' : 'POST';
   const url = editId ? `${baseUrl}/${editId}` : baseUrl;
   const body = new FormData(form);
   fetch(url, { method, body })
-    .then(r => { if (r.ok) location.reload(); });
+    .then(async r => {
+      if (r.ok) {
+        location.reload();
+      } else {
+        let msg = 'Ein unbekannter Fehler ist aufgetreten.';
+        try { const data = await r.json(); msg = data.detail || msg; } catch(e) {}
+        showFormError(formId, msg);
+      }
+    })
+    .catch(() => showFormError(formId, 'Netzwerkfehler – bitte erneut versuchen.'));
   return false;
 }
 </script>

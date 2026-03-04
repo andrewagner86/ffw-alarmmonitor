@@ -550,7 +550,10 @@ function renderEpModal(plan) {
     plan.fahrzeuge.forEach(f => {
       const tag = document.createElement('span');
       tag.textContent = f.name;
-      tag.style.cssText = 'padding:0.25rem 0.6rem;border-radius:4px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);color:#86EFAC;font-size:0.8rem;font-weight:600';
+      const isB = f.ziel_status === 'bereitschaft';
+      tag.style.cssText = isB
+        ? 'padding:0.25rem 0.6rem;border-radius:4px;background:rgba(234,179,8,0.15);border:1px solid rgba(234,179,8,0.4);color:#FDE047;font-size:0.8rem;font-weight:600'
+        : 'padding:0.25rem 0.6rem;border-radius:4px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#4ADE80;font-size:0.8rem;font-weight:600';
       fl.appendChild(tag);
     });
   }

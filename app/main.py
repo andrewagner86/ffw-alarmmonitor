@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Depends, HTTPException, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi import FastAPI, Depends, HTTPException, Request, Form, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Table, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, relationship, Session, sessionmaker
@@ -23,11 +23,12 @@ class Base(DeclarativeBase):
 
 # ─── Assoziationstabellen ─────────────────────────────────────────────────────
 
-alarmierungsplan_fahrzeuge = Table(
-    "alarmierungsplan_fahrzeuge", Base.metadata,
-    Column("alarmierungsplan_id", Integer, ForeignKey("einsatzplaene.id", ondelete="CASCADE"), primary_key=True),
-    Column("fahrzeug_id",    Integer, ForeignKey("fahrzeuge.id",     ondelete="CASCADE"), primary_key=True),
-)
+class AlarmierungsplanFahrzeug(Base):
+    __tablename__ = "alarmierungsplan_fahrzeuge"
+    alarmierungsplan_id = Column(Integer, ForeignKey("einsatzplaene.id", ondelete="CASCADE"), primary_key=True)
+    fahrzeug_id         = Column(Integer, ForeignKey("fahrzeuge.id",     ondelete="CASCADE"), primary_key=True)
+    ziel_status         = Column(String(30), default="alarmiert", nullable=False)
+    fahrzeug            = relationship("Fahrzeug")
 
 fahrzeug_ersatz = Table(
     "fahrzeug_ersatz", Base.metadata,
@@ -98,7 +99,7 @@ class Alarmierungsplan(Base):
     alarmierungstyp       = relationship("Alarmierungstyp")
     stichwort             = relationship("Alarmierungsstichwort")
     territorium           = relationship("Territorium")
-    fahrzeuge             = relationship("Fahrzeug", secondary=alarmierungsplan_fahrzeuge)
+    plan_fahrzeuge        = relationship("AlarmierungsplanFahrzeug", cascade="all, delete-orphan")
 
 
 class AktivAlarm(Base):
@@ -118,6 +119,16 @@ class AktivAlarm(Base):
 # ─── Datenbank initialisieren ─────────────────────────────────────────────────
 
 Base.metadata.create_all(bind=engine)
+
+# Bestehende DBs: ziel_status-Spalte nachrüsten falls noch nicht vorhanden
+try:
+    with engine.connect() as conn:
+        conn.execute(__import__("sqlalchemy").text(
+            "ALTER TABLE alarmierungsplan_fahrzeuge ADD COLUMN ziel_status VARCHAR(30) NOT NULL DEFAULT 'alarmiert'"
+        ))
+        conn.commit()
+except Exception:
+    pass  # Spalte existiert bereits
 
 # ─── App ──────────────────────────────────────────────────────────────────────
 
@@ -205,8 +216,8 @@ def get_einsatzplaene(atid: int, db: Session = Depends(get_db)):
             "ist_standard": ep.ist_standard,
             "territorium": {"id": ep.territorium.id, "name": ep.territorium.name} if ep.territorium else None,
             "stichwort": {"id": ep.stichwort.id, "text": ep.stichwort.text} if ep.stichwort else None,
-            "fahrzeuge": _effektive_fahrzeuge(ep.fahrzeuge),
-            "warnungen": _warnungen_vorschau(ep.fahrzeuge),
+            "fahrzeuge": _effektive_fahrzeuge(ep.plan_fahrzeuge),
+            "warnungen": _warnungen_vorschau(ep.plan_fahrzeuge),
         }
         for ep in plaene
     ]
@@ -216,14 +227,16 @@ class AlarmStartenPayload(BaseModel):
     alarmierungstyp_id: int
     alarmierungsplan_id: int
 
-def _effektive_fahrzeuge(fahrzeuge) -> list:
+def _effektive_fahrzeuge(plan_fahrzeuge) -> list:
     """Gibt die tatsächlich zu alarmierenden Fahrzeuge zurück (Ersatz bei nicht_einsatzbereit)."""
-    alarm_ids = {f.id for f in fahrzeuge}
+    alarm_ids = {pf.fahrzeug.id for pf in plan_fahrzeuge}
     verwendete_ersatz_ids: set = set()
     result = []
-    for f in fahrzeuge:
+    for pf in plan_fahrzeuge:
+        f = pf.fahrzeug
+        ziel = pf.ziel_status
         if f.status == "einsatzbereit":
-            result.append({"id": f.id, "name": f.name, "ersatz_fuer": None})
+            result.append({"id": f.id, "name": f.name, "ziel_status": ziel, "ersatz_fuer": None})
         else:
             ersatz = next(
                 (e for e in f.ersatzfahrzeuge
@@ -234,17 +247,18 @@ def _effektive_fahrzeuge(fahrzeuge) -> list:
             )
             if ersatz:
                 verwendete_ersatz_ids.add(ersatz.id)
-                result.append({"id": ersatz.id, "name": ersatz.name, "ersatz_fuer": f.name})
+                result.append({"id": ersatz.id, "name": ersatz.name, "ziel_status": ziel, "ersatz_fuer": f.name})
     return result
 
 
-def _warnungen_vorschau(fahrzeuge) -> list:
+def _warnungen_vorschau(plan_fahrzeuge) -> list:
     """Simuliert Alarmierung ohne DB-Änderungen. Gibt voraussichtliche Warnungen zurück."""
-    alarm_ids = {f.id for f in fahrzeuge}
+    alarm_ids = {pf.fahrzeug.id for pf in plan_fahrzeuge}
     verwendete_ersatz_ids: set = set()
     warnungen = []
     nicht_verfuegbar = []
-    for f in fahrzeuge:
+    for pf in plan_fahrzeuge:
+        f = pf.fahrzeug
         if f.status != "einsatzbereit":
             ersatz = next(
                 (e for e in f.ersatzfahrzeuge
@@ -265,16 +279,18 @@ def _warnungen_vorschau(fahrzeuge) -> list:
     return warnungen
 
 
-def _fahrzeuge_alarmieren(fahrzeuge) -> list:
+def _fahrzeuge_alarmieren(plan_fahrzeuge) -> list:
     """Alarmiert Fahrzeuge, nutzt Ersatz bei nicht_einsatzbereit. Gibt Warnungen zurück."""
-    alarm_ids = {f.id for f in fahrzeuge}
+    alarm_ids = {pf.fahrzeug.id for pf in plan_fahrzeuge}
     verwendete_ersatz_ids: set = set()
     warnungen = []
     nicht_verfuegbar = []
-    for f in fahrzeuge:
+    for pf in plan_fahrzeuge:
+        f = pf.fahrzeug
+        ziel = pf.ziel_status
         if f.status == "einsatzbereit":
-            f.status = "alarmiert"
-        elif f.status != "einsatzbereit":
+            f.status = ziel
+        else:
             ersatz = next(
                 (e for e in f.ersatzfahrzeuge
                  if e.status == "einsatzbereit"
@@ -284,7 +300,7 @@ def _fahrzeuge_alarmieren(fahrzeuge) -> list:
             )
             if ersatz:
                 verwendete_ersatz_ids.add(ersatz.id)
-                ersatz.status = "alarmiert"
+                ersatz.status = ziel
             else:
                 nicht_verfuegbar.append(f.name)
     if nicht_verfuegbar:
@@ -305,7 +321,7 @@ def alarm_starten(payload: AlarmStartenPayload, db: Session = Depends(get_db)):
     if not ep or ep.alarmierungstyp_id != payload.alarmierungstyp_id:
         raise HTTPException(status_code=404)
 
-    warnungen = _fahrzeuge_alarmieren(ep.fahrzeuge)
+    warnungen = _fahrzeuge_alarmieren(ep.plan_fahrzeuge)
 
     alarm = AktivAlarm(
         alarmierungstyp_id=payload.alarmierungstyp_id,
@@ -429,6 +445,203 @@ def gruppe_move(gid: int, direction: str = "up", db: Session = Depends(get_db)):
 
 
 # ─── Admin: Fahrzeuge ─────────────────────────────────────────────────────────
+
+# ─── Admin: Datenverwaltung ───────────────────────────────────────────────────
+
+@app.get("/admin/datenverwaltung", response_class=HTMLResponse)
+def admin_datenverwaltung(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse("admin.html", {"request": request, **admin_context(db, "datenverwaltung")})
+
+
+@app.get("/admin/datenverwaltung/export")
+def datenverwaltung_export(db: Session = Depends(get_db)):
+    gruppen = db.query(FahrzeugGruppe).order_by(FahrzeugGruppe.position, FahrzeugGruppe.name).all()
+    territorien = db.query(Territorium).order_by(Territorium.name).all()
+    fahrzeuge = fahrzeuge_sortiert(db)
+    alarmierungstypen = db.query(Alarmierungstyp).order_by(Alarmierungstyp.name).all()
+    plaene = db.query(Alarmierungsplan).all()
+
+    data = {
+        "version": 1,
+        "gruppen": [{"id": g.id, "name": g.name, "position": g.position} for g in gruppen],
+        "territorien": [{"id": t.id, "name": t.name, "beschreibung": t.beschreibung} for t in territorien],
+        "fahrzeuge": [
+            {
+                "id": f.id, "name": f.name, "kennzeichen": f.kennzeichen,
+                "funkkennung": f.funkkennung, "typ": f.typ, "status": f.status,
+                "position": f.position, "gruppe_id": f.gruppe_id,
+                "ersatz_ids": [e.id for e in f.ersatzfahrzeuge],
+            }
+            for f in fahrzeuge
+        ],
+        "alarmierungstypen": [
+            {
+                "id": at.id, "name": at.name, "beschreibung": at.beschreibung,
+                "stichworte": [{"id": s.id, "text": s.text} for s in at.alarmierungsstichworte],
+            }
+            for at in alarmierungstypen
+        ],
+        "alarmierungsplaene": [
+            {
+                "id": ep.id,
+                "alarmierungstyp_id": ep.alarmierungstyp_id,
+                "stichwort_id": ep.stichwort_id,
+                "territorium_id": ep.territorium_id,
+                "ist_standard": ep.ist_standard,
+                "fahrzeug_eintraege": [f"{pf.fahrzeug_id}:{pf.ziel_status}" for pf in ep.plan_fahrzeuge],
+            }
+            for ep in plaene
+        ],
+    }
+    content = json.dumps(data, ensure_ascii=False, indent=2)
+    filename = datetime.utcnow().strftime("ffw-export-%Y%m%d-%H%M%S.json")
+    return StreamingResponse(
+        iter([content]),
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@app.post("/admin/datenverwaltung/import")
+async def datenverwaltung_import(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    try:
+        raw = await file.read()
+        data = json.loads(raw)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Ungültige JSON-Datei")
+
+    if data.get("version") != 1:
+        raise HTTPException(status_code=400, detail="Unbekanntes Exportformat")
+
+    stats = {"gruppen": 0, "territorien": 0, "fahrzeuge": 0, "alarmierungstypen": 0, "plaene": 0}
+
+    # Gruppen – anhand Name deduplizieren, ID-Mapping merken
+    gruppen_map: dict[int, int] = {}  # alte ID → neue ID
+    for g in data.get("gruppen", []):
+        existing = db.query(FahrzeugGruppe).filter_by(name=g["name"]).first()
+        if existing:
+            gruppen_map[g["id"]] = existing.id
+        else:
+            neu = FahrzeugGruppe(name=g["name"], position=g.get("position", 0))
+            db.add(neu); db.flush()
+            gruppen_map[g["id"]] = neu.id
+            stats["gruppen"] += 1
+
+    # Territorien
+    territorien_map: dict[int, int] = {}
+    for t in data.get("territorien", []):
+        existing = db.query(Territorium).filter_by(name=t["name"]).first()
+        if existing:
+            territorien_map[t["id"]] = existing.id
+        else:
+            neu = Territorium(name=t["name"], beschreibung=t.get("beschreibung"))
+            db.add(neu); db.flush()
+            territorien_map[t["id"]] = neu.id
+            stats["territorien"] += 1
+
+    # Fahrzeuge – anhand Name + Typ deduplizieren
+    fahrzeuge_map: dict[int, int] = {}
+    fahrzeuge_roh = data.get("fahrzeuge", [])
+    for f in fahrzeuge_roh:
+        existing = db.query(Fahrzeug).filter_by(name=f["name"], typ=f["typ"]).first()
+        if existing:
+            fahrzeuge_map[f["id"]] = existing.id
+        else:
+            neu = Fahrzeug(
+                name=f["name"], kennzeichen=f.get("kennzeichen"),
+                funkkennung=f.get("funkkennung"), typ=f["typ"],
+                status="einsatzbereit", position=f.get("position", 0),
+                gruppe_id=gruppen_map.get(f.get("gruppe_id")) if f.get("gruppe_id") else None,
+            )
+            db.add(neu); db.flush()
+            fahrzeuge_map[f["id"]] = neu.id
+            stats["fahrzeuge"] += 1
+
+    # Ersatzfahrzeug-Verknüpfungen setzen
+    for f in fahrzeuge_roh:
+        fzg = db.get(Fahrzeug, fahrzeuge_map[f["id"]])
+        fzg.ersatzfahrzeuge = [
+            db.get(Fahrzeug, fahrzeuge_map[eid])
+            for eid in f.get("ersatz_ids", [])
+            if eid in fahrzeuge_map and fahrzeuge_map[eid]
+        ]
+
+    # Alarmierungstypen + Stichworte
+    at_map: dict[int, int] = {}
+    sw_map: dict[int, int] = {}
+    for at in data.get("alarmierungstypen", []):
+        existing = db.query(Alarmierungstyp).filter_by(name=at["name"]).first()
+        if existing:
+            at_map[at["id"]] = existing.id
+            for sw in at.get("stichworte", []):
+                ex_sw = db.query(Alarmierungsstichwort).filter_by(
+                    text=sw["text"], alarmierungstyp_id=existing.id
+                ).first()
+                sw_map[sw["id"]] = ex_sw.id if ex_sw else sw["id"]
+        else:
+            neu_at = Alarmierungstyp(name=at["name"], beschreibung=at.get("beschreibung"))
+            db.add(neu_at); db.flush()
+            at_map[at["id"]] = neu_at.id
+            stats["alarmierungstypen"] += 1
+            for sw in at.get("stichworte", []):
+                neu_sw = Alarmierungsstichwort(text=sw["text"], alarmierungstyp_id=neu_at.id)
+                db.add(neu_sw); db.flush()
+                sw_map[sw["id"]] = neu_sw.id
+
+    # Alarmierungspläne
+    for ep in data.get("alarmierungsplaene", []):
+        at_id  = at_map.get(ep["alarmierungstyp_id"])
+        ter_id = territorien_map.get(ep["territorium_id"])
+        sw_id  = sw_map.get(ep.get("stichwort_id")) if ep.get("stichwort_id") else None
+        if not at_id or not ter_id:
+            continue
+        existing = db.query(Alarmierungsplan).filter_by(
+            alarmierungstyp_id=at_id, stichwort_id=sw_id, territorium_id=ter_id
+        ).first()
+        if not existing:
+            neu_ep = Alarmierungsplan(
+                alarmierungstyp_id=at_id, stichwort_id=sw_id,
+                territorium_id=ter_id, ist_standard=ep.get("ist_standard", False),
+            )
+            db.add(neu_ep); db.flush()
+            # Support both old format (fahrzeug_ids) and new format (fahrzeug_eintraege)
+            eintraege = ep.get("fahrzeug_eintraege") or [
+                str(fid) for fid in ep.get("fahrzeug_ids", [])
+            ]
+            mapped = []
+            for eintrag in eintraege:
+                teile = str(eintrag).split(":", 1)
+                orig_fid = int(teile[0])
+                ziel = teile[1] if len(teile) > 1 else "alarmiert"
+                new_fid = fahrzeuge_map.get(orig_fid)
+                if new_fid:
+                    mapped.append(f"{new_fid}:{ziel}")
+            _set_plan_fahrzeuge(neu_ep, mapped, db)
+            stats["plaene"] += 1
+
+    db.commit()
+    msg = (
+        f"Import abgeschlossen: "
+        f"{stats['gruppen']} Gruppen, {stats['territorien']} Territorien, "
+        f"{stats['fahrzeuge']} Fahrzeuge, {stats['alarmierungstypen']} Alarmierungstypen, "
+        f"{stats['plaene']} Alarmierungspläne neu angelegt."
+    )
+    return {"ok": True, "message": msg}
+
+
+@app.post("/admin/datenverwaltung/reset")
+def datenverwaltung_reset(db: Session = Depends(get_db)):
+    db.query(AktivAlarm).delete()
+    db.query(Alarmierungsplan).delete()
+    db.query(Alarmierungsstichwort).delete()
+    db.query(Alarmierungstyp).delete()
+    db.query(Fahrzeug).delete()
+    db.query(FahrzeugGruppe).delete()
+    db.query(Territorium).delete()
+    db.commit()
+    return {"ok": True}
+
+
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin():
@@ -557,13 +770,28 @@ def admin_alarmierungsplan(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("admin.html", {"request": request, **admin_context(db, "alarmierungsplaene")})
 
 
+
+def _set_plan_fahrzeuge(ep, fahrzeug_eintraege: list[str], db):
+    """Setzt plan_fahrzeuge aus codierten Strings 'id:status' oder 'id'."""
+    ep.plan_fahrzeuge.clear()
+    for eintrag in fahrzeug_eintraege:
+        teile = eintrag.split(":", 1)
+        fid   = int(teile[0])
+        ziel  = teile[1] if len(teile) > 1 and teile[1] in ("alarmiert", "bereitschaft") else "alarmiert"
+        f     = db.get(Fahrzeug, fid)
+        if f:
+            ep.plan_fahrzeuge.append(AlarmierungsplanFahrzeug(
+                fahrzeug_id=fid, ziel_status=ziel
+            ))
+
+
 @app.post("/admin/alarmierungsplan")
 def alarmierungsplan_neu(
     alarmierungstyp_id: int = Form(...),
     stichwort_id: Optional[str] = Form(None),
     territorium_id: int = Form(...),
     ist_standard: bool = Form(False),
-    fahrzeug_ids: list[int] = Form(default=[]),
+    fahrzeug_eintraege: list[str] = Form(default=[]),
     db: Session = Depends(get_db)
 ):
     sw_id = int(stichwort_id) if stichwort_id and stichwort_id.strip() else None
@@ -585,8 +813,9 @@ def alarmierungsplan_neu(
         territorium_id=territorium_id,
         ist_standard=ist_standard,
     )
-    ep.fahrzeuge = db.query(Fahrzeug).filter(Fahrzeug.id.in_(fahrzeug_ids)).all()
     db.add(ep)
+    db.flush()
+    _set_plan_fahrzeuge(ep, fahrzeug_eintraege, db)
     db.commit()
     return {"ok": True}
 
@@ -598,7 +827,7 @@ def alarmierungsplan_bearbeiten(
     stichwort_id: Optional[str] = Form(None),
     territorium_id: int = Form(...),
     ist_standard: bool = Form(False),
-    fahrzeug_ids: list[int] = Form(default=[]),
+    fahrzeug_eintraege: list[str] = Form(default=[]),
     db: Session = Depends(get_db)
 ):
     ep = db.get(Alarmierungsplan, epid)
@@ -623,7 +852,7 @@ def alarmierungsplan_bearbeiten(
     ep.stichwort_id       = sw_id
     ep.territorium_id     = territorium_id
     ep.ist_standard       = ist_standard
-    ep.fahrzeuge          = db.query(Fahrzeug).filter(Fahrzeug.id.in_(fahrzeug_ids)).all()
+    _set_plan_fahrzeuge(ep, fahrzeug_eintraege, db)
     db.commit()
     return {"ok": True}
 
