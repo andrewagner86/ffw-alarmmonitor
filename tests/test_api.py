@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 # Patch DATABASE_URL vor dem Import von main
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
@@ -28,7 +29,7 @@ from app.main import (
     app, Base, get_db,
     Fahrzeug, FahrzeugGruppe, Territorium,
     Alarmierungstyp, Alarmierungsstichwort,
-    Alarmierungsplan, AktivAlarm,
+    Alarmierungsplan, AktivAlarm, AlarmierungsplanFahrzeug,
 )
 
 # ─── Test-Datenbank ───────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ from app.main import (
 TEST_ENGINE = create_engine(
     "sqlite:///:memory:",
     connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 TestSessionLocal = sessionmaker(bind=TEST_ENGINE)
 
@@ -70,6 +72,7 @@ class BaseTestCase(unittest.TestCase):
         db = TestSessionLocal()
         try:
             db.query(AktivAlarm).delete()
+            db.query(AlarmierungsplanFahrzeug).delete()
             db.query(Alarmierungsplan).delete()
             db.query(Alarmierungsstichwort).delete()
             db.query(Alarmierungstyp).delete()
@@ -128,7 +131,7 @@ class BaseTestCase(unittest.TestCase):
         if stichwort_id:
             data["stichwort_id"] = stichwort_id
         if fahrzeug_ids:
-            data["fahrzeug_ids"] = fahrzeug_ids
+            data["fahrzeug_eintraege"] = [f"{fid}:alarmiert" for fid in fahrzeug_ids]
         r = self.client.post("/admin/alarmierungsplan", data=data)
         self.assertEqual(r.status_code, 200)
         db = TestSessionLocal()
@@ -408,7 +411,7 @@ class TestAlarmierungsplaeneAPI(BaseTestCase):
         r = self.client.post("/admin/alarmierungsplan", data={
             "alarmierungstyp_id": self.at.id,
             "territorium_id": self.t.id,
-            "fahrzeug_ids": [self.f1.id],
+            "fahrzeug_eintraege": [f"{self.f1.id}:alarmiert"],
         })
         self.assertEqual(r.status_code, 200)
         self.assertTrue(r.json()["ok"])
@@ -447,7 +450,7 @@ class TestAlarmierungsplaeneAPI(BaseTestCase):
         r = self.client.put(f"/admin/alarmierungsplan/{ep.id}", data={
             "alarmierungstyp_id": self.at.id,
             "territorium_id": t2.id,
-            "fahrzeug_ids": [self.f2.id],
+            "fahrzeug_eintraege": [f"{self.f2.id}:alarmiert"],
         })
         self.assertEqual(r.status_code, 200)
         db = TestSessionLocal()
@@ -857,3 +860,453 @@ class TestErsatzfahrzeugLogik(BaseTestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+# ─── Neue Tests: ziel_status / Bereitschaft ───────────────────────────────────
+
+class TestZielStatus(BaseTestCase):
+    """Prüft, dass der ziel_status pro Fahrzeug korrekt gesetzt wird."""
+
+    def setUp(self):
+        super().setUp()
+        self.at = self._create_alarmierungstyp("BRAND")
+        self.t  = self._create_territorium("Mitte")
+        self.f1 = self._create_fahrzeug("TLF 1")
+        self.f2 = self._create_fahrzeug("HLF 2")
+
+    def test_plan_mit_bereitschaft_setzt_fahrzeug_auf_bereitschaft(self):
+        """Fahrzeug mit ziel_status=bereitschaft bekommt nach Alarm Status bereitschaft."""
+        r = self.client.post("/admin/alarmierungsplan", data={
+            "alarmierungstyp_id": self.at.id,
+            "territorium_id": self.t.id,
+            "fahrzeug_eintraege": [f"{self.f1.id}:bereitschaft"],
+        })
+        self.assertEqual(r.status_code, 200)
+        db = TestSessionLocal()
+        ep = db.query(Alarmierungsplan).filter_by(
+            alarmierungstyp_id=self.at.id, territorium_id=self.t.id
+        ).first()
+        db.close()
+
+        self._start_alarm(self.at.id, ep.id)
+        db = TestSessionLocal()
+        f = db.get(Fahrzeug, self.f1.id)
+        db.close()
+        self.assertEqual(f.status, "bereitschaft")
+
+    def test_plan_gemischter_ziel_status(self):
+        """Ein Fahrzeug alarmiert, ein anderes in Bereitschaft."""
+        r = self.client.post("/admin/alarmierungsplan", data={
+            "alarmierungstyp_id": self.at.id,
+            "territorium_id": self.t.id,
+            "fahrzeug_eintraege": [
+                f"{self.f1.id}:alarmiert",
+                f"{self.f2.id}:bereitschaft",
+            ],
+        })
+        self.assertEqual(r.status_code, 200)
+        db = TestSessionLocal()
+        ep = db.query(Alarmierungsplan).filter_by(
+            alarmierungstyp_id=self.at.id, territorium_id=self.t.id
+        ).first()
+        db.close()
+
+        self._start_alarm(self.at.id, ep.id)
+        db = TestSessionLocal()
+        self.assertEqual(db.get(Fahrzeug, self.f1.id).status, "alarmiert")
+        self.assertEqual(db.get(Fahrzeug, self.f2.id).status, "bereitschaft")
+        db.close()
+
+    def test_ziel_status_in_einsatzplaene_api(self):
+        """Die /api/.../einsatzplaene Antwort enthält ziel_status je Fahrzeug."""
+        r = self.client.post("/admin/alarmierungsplan", data={
+            "alarmierungstyp_id": self.at.id,
+            "territorium_id": self.t.id,
+            "fahrzeug_eintraege": [
+                f"{self.f1.id}:alarmiert",
+                f"{self.f2.id}:bereitschaft",
+            ],
+        })
+        self.assertEqual(r.status_code, 200)
+        r2 = self.client.get(f"/api/alarmierungstyp/{self.at.id}/einsatzplaene")
+        self.assertEqual(r2.status_code, 200)
+        fzg = r2.json()[0]["fahrzeuge"]
+        stati = {f["name"]: f["ziel_status"] for f in fzg}
+        self.assertEqual(stati["TLF 1"], "alarmiert")
+        self.assertEqual(stati["HLF 2"], "bereitschaft")
+
+    def test_ersatz_erbt_ziel_status_des_originals(self):
+        """Ersatzfahrzeug übernimmt den ziel_status des ausgefallenen Fahrzeugs."""
+        ersatz = self._create_fahrzeug("ELW 1")
+        # f1 als nicht einsatzbereit markieren
+        db = TestSessionLocal()
+        f1 = db.get(Fahrzeug, self.f1.id)
+        f1.status = "nicht_einsatzbereit"
+        f1.ersatzfahrzeuge = [db.get(Fahrzeug, ersatz.id)]
+        db.commit()
+        db.close()
+
+        r = self.client.post("/admin/alarmierungsplan", data={
+            "alarmierungstyp_id": self.at.id,
+            "territorium_id": self.t.id,
+            "fahrzeug_eintraege": [f"{self.f1.id}:bereitschaft"],
+        })
+        self.assertEqual(r.status_code, 200)
+        db = TestSessionLocal()
+        ep = db.query(Alarmierungsplan).filter_by(
+            alarmierungstyp_id=self.at.id, territorium_id=self.t.id
+        ).first()
+        db.close()
+
+        self._start_alarm(self.at.id, ep.id)
+        db = TestSessionLocal()
+        self.assertEqual(db.get(Fahrzeug, ersatz.id).status, "bereitschaft")
+        db.close()
+
+
+# ─── Neue Tests: Stichwort-Referenzschutz ────────────────────────────────────
+
+class TestStichwortReferenzschutz(BaseTestCase):
+    """Prüft, dass referenzierte Stichworte beim Bearbeiten nicht gelöscht werden."""
+
+    def setUp(self):
+        super().setUp()
+        self.at = self._create_alarmierungstyp("BRAND", stichworte="B1\nB2")
+        self.t  = self._create_territorium("Mitte")
+        db = TestSessionLocal()
+        stichworte = db.query(Alarmierungsstichwort).filter_by(
+            alarmierungstyp_id=self.at.id
+        ).all()
+        self.sw_b1 = next(s for s in stichworte if s.text == "B1")
+        self.sw_b2 = next(s for s in stichworte if s.text == "B2")
+        db.close()
+
+    def test_referenziertes_stichwort_bleibt_erhalten(self):
+        """Stichwort B1 ist in einem Plan → darf nicht gelöscht werden."""
+        self.client.post("/admin/alarmierungsplan", data={
+            "alarmierungstyp_id": self.at.id,
+            "stichwort_id": self.sw_b1.id,
+            "territorium_id": self.t.id,
+        })
+        # Bearbeiten: B1 aus der Liste entfernen, nur B2 behalten
+        r = self.client.put(f"/admin/alarmierungstyp/{self.at.id}", data={
+            "name": "BRAND",
+            "stichworte": f"{self.sw_b2.id}:B2",
+        })
+        self.assertEqual(r.status_code, 200)
+        db = TestSessionLocal()
+        verbleibend = [s.text for s in db.query(Alarmierungsstichwort).filter_by(
+            alarmierungstyp_id=self.at.id
+        ).all()]
+        db.close()
+        self.assertIn("B1", verbleibend, "Referenziertes Stichwort muss erhalten bleiben")
+        self.assertIn("B2", verbleibend)
+
+    def test_nicht_referenziertes_stichwort_wird_geloescht(self):
+        """Stichwort B2 ist nicht referenziert → wird beim Bearbeiten entfernt."""
+        # Nur B1 in Plan verwenden
+        self.client.post("/admin/alarmierungsplan", data={
+            "alarmierungstyp_id": self.at.id,
+            "stichwort_id": self.sw_b1.id,
+            "territorium_id": self.t.id,
+        })
+        # Bearbeiten: nur B1 behalten, B2 entfernen
+        r = self.client.put(f"/admin/alarmierungstyp/{self.at.id}", data={
+            "name": "BRAND",
+            "stichworte": f"{self.sw_b1.id}:B1",
+        })
+        self.assertEqual(r.status_code, 200)
+        db = TestSessionLocal()
+        verbleibend = [s.text for s in db.query(Alarmierungsstichwort).filter_by(
+            alarmierungstyp_id=self.at.id
+        ).all()]
+        db.close()
+        self.assertNotIn("B2", verbleibend, "Nicht referenziertes Stichwort muss gelöscht werden")
+
+    def test_stichwort_umbenennen(self):
+        """Umbenennen eines Stichwortes per id:text Format."""
+        r = self.client.put(f"/admin/alarmierungstyp/{self.at.id}", data={
+            "name": "BRAND",
+            "stichworte": f"{self.sw_b1.id}:B1-NEU\n{self.sw_b2.id}:B2",
+        })
+        self.assertEqual(r.status_code, 200)
+        db = TestSessionLocal()
+        sw = db.get(Alarmierungsstichwort, self.sw_b1.id)
+        db.close()
+        self.assertEqual(sw.text, "B1-NEU")
+
+
+# ─── Neue Tests: Datenverwaltung ─────────────────────────────────────────────
+
+class TestDatenverwaltung(BaseTestCase):
+    """Prüft Export, Import und Reset der Datenverwaltung."""
+
+    def setUp(self):
+        super().setUp()
+        self.g  = self._create_gruppe("Gruppe A")
+        self.t  = self._create_territorium("Mitte")
+        self.at = self._create_alarmierungstyp("BRAND", stichworte="B1")
+        self.f1 = self._create_fahrzeug("TLF 1", gruppe_id=self.g.id)
+
+    def test_export_gibt_json_zurueck(self):
+        r = self.client.get("/admin/datenverwaltung/export")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("application/json", r.headers.get("content-type", ""))
+        data = r.json()
+        self.assertEqual(data["version"], 1)
+        self.assertIn("fahrzeuge", data)
+        self.assertIn("gruppen", data)
+        self.assertIn("territorien", data)
+        self.assertIn("alarmierungstypen", data)
+        self.assertIn("alarmierungsplaene", data)
+
+    def test_export_enthaelt_stammdaten(self):
+        r = self.client.get("/admin/datenverwaltung/export")
+        data = r.json()
+        namen_fzg = [f["name"] for f in data["fahrzeuge"]]
+        self.assertIn("TLF 1", namen_fzg)
+        namen_at = [a["name"] for a in data["alarmierungstypen"]]
+        self.assertIn("BRAND", namen_at)
+        namen_ter = [t["name"] for t in data["territorien"]]
+        self.assertIn("Mitte", namen_ter)
+
+    def test_export_enthaelt_stichworte(self):
+        r = self.client.get("/admin/datenverwaltung/export")
+        data = r.json()
+        at = next(a for a in data["alarmierungstypen"] if a["name"] == "BRAND")
+        self.assertEqual(len(at["stichworte"]), 1)
+        self.assertEqual(at["stichworte"][0]["text"], "B1")
+
+    def test_export_enthaelt_ziel_status(self):
+        """Exportierte Alarmierungspläne enthalten fahrzeug_eintraege mit ziel_status."""
+        self.client.post("/admin/alarmierungsplan", data={
+            "alarmierungstyp_id": self.at.id,
+            "territorium_id": self.t.id,
+            "fahrzeug_eintraege": [f"{self.f1.id}:bereitschaft"],
+        })
+        r = self.client.get("/admin/datenverwaltung/export")
+        data = r.json()
+        self.assertEqual(len(data["alarmierungsplaene"]), 1)
+        eintraege = data["alarmierungsplaene"][0]["fahrzeug_eintraege"]
+        self.assertTrue(any("bereitschaft" in e for e in eintraege))
+
+    def test_import_legt_neue_eintraege_an(self):
+        """Import einer gültigen JSON-Datei legt fehlende Einträge an."""
+        import json, io
+        payload = {
+            "version": 1,
+            "gruppen": [{"id": 99, "name": "Import-Gruppe", "position": 0}],
+            "territorien": [{"id": 99, "name": "Import-Territorium"}],
+            "fahrzeuge": [
+                {"id": 99, "name": "Import-Fahrzeug", "typ": "LF",
+                 "status": "einsatzbereit", "position": 0,
+                 "gruppe_id": 99, "ersatz_ids": []}
+            ],
+            "alarmierungstypen": [
+                {"id": 99, "name": "Import-AT",
+                 "stichworte": [{"id": 99, "text": "IMP1"}]}
+            ],
+            "alarmierungsplaene": [],
+        }
+        file_bytes = json.dumps(payload).encode()
+        r = self.client.post(
+            "/admin/datenverwaltung/import",
+            files={"file": ("import.json", io.BytesIO(file_bytes), "application/json")},
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["ok"])
+        db = TestSessionLocal()
+        self.assertIsNotNone(db.query(FahrzeugGruppe).filter_by(name="Import-Gruppe").first())
+        self.assertIsNotNone(db.query(Fahrzeug).filter_by(name="Import-Fahrzeug").first())
+        self.assertIsNotNone(db.query(Alarmierungstyp).filter_by(name="Import-AT").first())
+        db.close()
+
+    def test_import_dupliziert_keine_bestehenden_eintraege(self):
+        """Import überspringt Einträge, die bereits vorhanden sind (Name-Dedup)."""
+        import json, io
+        payload = {
+            "version": 1,
+            "gruppen": [],
+            "territorien": [{"id": 1, "name": "Mitte"}],  # bereits vorhanden
+            "fahrzeuge": [],
+            "alarmierungstypen": [],
+            "alarmierungsplaene": [],
+        }
+        file_bytes = json.dumps(payload).encode()
+        self.client.post(
+            "/admin/datenverwaltung/import",
+            files={"file": ("import.json", io.BytesIO(file_bytes), "application/json")},
+        )
+        db = TestSessionLocal()
+        count = db.query(Territorium).filter_by(name="Mitte").count()
+        db.close()
+        self.assertEqual(count, 1, "Kein doppelter Eintrag nach Import")
+
+    def test_import_ungueltige_datei_gibt_400(self):
+        import io
+        r = self.client.post(
+            "/admin/datenverwaltung/import",
+            files={"file": ("bad.json", io.BytesIO(b"kein json"), "application/json")},
+        )
+        self.assertEqual(r.status_code, 400)
+
+    def test_import_falsches_format_gibt_400(self):
+        import json, io
+        r = self.client.post(
+            "/admin/datenverwaltung/import",
+            files={"file": ("bad.json", io.BytesIO(json.dumps({"version": 99}).encode()), "application/json")},
+        )
+        self.assertEqual(r.status_code, 400)
+
+    def test_reset_loescht_alle_daten(self):
+        """Reset entfernt alle Datensätze aus allen Tabellen."""
+        r = self.client.post("/admin/datenverwaltung/reset")
+        self.assertEqual(r.status_code, 200)
+        db = TestSessionLocal()
+        self.assertEqual(db.query(Fahrzeug).count(), 0)
+        self.assertEqual(db.query(FahrzeugGruppe).count(), 0)
+        self.assertEqual(db.query(Territorium).count(), 0)
+        self.assertEqual(db.query(Alarmierungstyp).count(), 0)
+        self.assertEqual(db.query(Alarmierungsstichwort).count(), 0)
+        self.assertEqual(db.query(Alarmierungsplan).count(), 0)
+        db.close()
+
+
+# ─── Neue Tests: fehlende Lücken ─────────────────────────────────────────────
+
+class TestFehlendeLuecken(BaseTestCase):
+    """Sammelt noch nicht abgedeckte Edge Cases."""
+
+    def setUp(self):
+        super().setUp()
+        self.at = self._create_alarmierungstyp("THL")
+        self.t  = self._create_territorium("Süd")
+        self.f1 = self._create_fahrzeug("RW 1")
+        self.f2 = self._create_fahrzeug("GW-L 1")
+
+    # ── Gruppe move_down ──────────────────────────────────────────────────────
+
+    def test_gruppe_move_down(self):
+        g1 = self._create_gruppe("Alpha")
+        g2 = self._create_gruppe("Beta")
+        db = TestSessionLocal()
+        db.get(FahrzeugGruppe, g1.id).position = 0
+        db.get(FahrzeugGruppe, g2.id).position = 1
+        db.commit()
+        db.close()
+        r = self.client.post(f"/api/gruppe/{g1.id}/move", params={"direction": "down"})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["ok"])
+        db = TestSessionLocal()
+        self.assertGreater(
+            db.get(FahrzeugGruppe, g1.id).position,
+            db.get(FahrzeugGruppe, g2.id).position,
+        )
+        db.close()
+
+    # ── Alarm beenden setzt bereitschaft → einsatzbereit ─────────────────────
+
+    def test_alarm_beenden_setzt_bereitschaft_zurueck(self):
+        """Auch Fahrzeuge im Status bereitschaft werden nach Alarm-Ende zurückgesetzt."""
+        ep = self._create_alarmierungsplan(
+            self.at.id, self.t.id,
+            fahrzeug_ids=[self.f1.id, self.f2.id],
+        )
+        self._start_alarm(self.at.id, ep.id)
+        # f2 manuell auf bereitschaft setzen
+        db = TestSessionLocal()
+        db.get(Fahrzeug, self.f2.id).status = "bereitschaft"
+        db.commit()
+        db.close()
+        self.client.post("/api/alarm/beenden")
+        db = TestSessionLocal()
+        self.assertEqual(db.get(Fahrzeug, self.f1.id).status, "einsatzbereit")
+        self.assertEqual(db.get(Fahrzeug, self.f2.id).status, "einsatzbereit")
+        db.close()
+
+    # ── Fahrzeug-Löschung entfernt Eintrag aus Plan ───────────────────────────
+
+    def test_fahrzeug_loeschen_entfernt_aus_plan(self):
+        """Wird ein Fahrzeug gelöscht, verschwindet es aus dem Alarmierungsplan (CASCADE)."""
+        ep = self._create_alarmierungsplan(
+            self.at.id, self.t.id,
+            fahrzeug_ids=[self.f1.id],
+        )
+        r = self.client.delete(f"/admin/fahrzeug/{self.f1.id}")
+        self.assertEqual(r.status_code, 200)
+        db = TestSessionLocal()
+        pf_count = db.query(AlarmierungsplanFahrzeug).filter_by(
+            alarmierungsplan_id=ep.id,
+            fahrzeug_id=self.f1.id,
+        ).count()
+        db.close()
+        self.assertEqual(pf_count, 0)
+
+    # ── Alarmierungsplan ohne Fahrzeuge anlegen ───────────────────────────────
+
+    def test_alarmierungsplan_ohne_fahrzeuge_anlegen(self):
+        """Ein Plan ohne Fahrzeuge ist zulässig."""
+        r = self.client.post("/admin/alarmierungsplan", data={
+            "alarmierungstyp_id": self.at.id,
+            "territorium_id": self.t.id,
+        })
+        self.assertEqual(r.status_code, 200)
+        db = TestSessionLocal()
+        ep = db.query(Alarmierungsplan).filter_by(
+            alarmierungstyp_id=self.at.id, territorium_id=self.t.id,
+        ).first()
+        self.assertIsNotNone(ep)
+        self.assertEqual(len(ep.plan_fahrzeuge), 0)
+        db.close()
+
+    # ── Export: Content-Disposition Header ───────────────────────────────────
+
+    def test_export_content_disposition_header(self):
+        """Export-Response enthält einen Content-Disposition attachment Header."""
+        r = self.client.get("/admin/datenverwaltung/export")
+        self.assertEqual(r.status_code, 200)
+        cd = r.headers.get("content-disposition", "")
+        self.assertIn("attachment", cd)
+        self.assertIn(".json", cd)
+
+    # ── Import: Plan mit Fahrzeugen und ziel_status ───────────────────────────
+
+    def test_import_plan_mit_fahrzeugen_und_ziel_status(self):
+        """Import legt Plan mit Fahrzeug-Zuordnung inkl. ziel_status korrekt an."""
+        import json, io
+        payload = {
+            "version": 1,
+            "gruppen": [],
+            "territorien": [{"id": 1, "name": "Süd"}],
+            "fahrzeuge": [
+                {"id": 1, "name": "RW 1", "typ": "RW",
+                 "status": "einsatzbereit", "position": 0,
+                 "gruppe_id": None, "ersatz_ids": []},
+            ],
+            "alarmierungstypen": [
+                {"id": 1, "name": "THL", "stichworte": []},
+            ],
+            "alarmierungsplaene": [
+                {
+                    "id": 1,
+                    "alarmierungstyp_id": 1,
+                    "stichwort_id": None,
+                    "territorium_id": 1,
+                    "ist_standard": False,
+                    "fahrzeug_eintraege": ["1:bereitschaft"],
+                }
+            ],
+        }
+        # Reset first so IDs are clean
+        self.client.post("/admin/datenverwaltung/reset")
+        r = self.client.post(
+            "/admin/datenverwaltung/import",
+            files={"file": ("import.json", io.BytesIO(json.dumps(payload).encode()), "application/json")},
+        )
+        self.assertEqual(r.status_code, 200)
+        db = TestSessionLocal()
+        ep = db.query(Alarmierungsplan).first()
+        self.assertIsNotNone(ep)
+        self.assertEqual(len(ep.plan_fahrzeuge), 1)
+        self.assertEqual(ep.plan_fahrzeuge[0].ziel_status, "bereitschaft")
+        db.close()
