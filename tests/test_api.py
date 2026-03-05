@@ -30,6 +30,7 @@ from app.main import (
     Fahrzeug, FahrzeugGruppe, Territorium,
     Alarmierungstyp, Alarmierungsstichwort,
     Alarmierungsplan, AktivAlarm, AlarmierungsplanFahrzeug,
+    Einstellung,
 )
 
 # ─── Test-Datenbank ───────────────────────────────────────────────────────────
@@ -91,6 +92,7 @@ class BaseTestCase(unittest.TestCase):
             db.query(Fahrzeug).delete()
             db.query(FahrzeugGruppe).delete()
             db.query(Territorium).delete()
+            db.query(Einstellung).delete()
             db.commit()
         finally:
             db.close()
@@ -748,7 +750,12 @@ class TestEinsatzAPI(BaseTestCase):
     def test_einsatz_api_ohne_alarm(self):
         r = self.client.get("/api/einsatz")
         self.assertEqual(r.status_code, 200)
-        self.assertIsNone(r.json()["alarm"])
+        data = r.json()
+        self.assertIsNone(data["alarm"])
+        self.assertIn("einsatz_unterteilungen", data)
+        self.assertIn("einsatz_darstellung", data)
+        self.assertEqual(data["einsatz_unterteilungen"], 1)
+        self.assertEqual(data["einsatz_darstellung"], "vertikal")
 
     def test_einsatz_api_mit_alarm(self):
         self._start_alarm(self.at.id, self.ep.id)
@@ -1324,3 +1331,57 @@ class TestFehlendeLuecken(BaseTestCase):
         self.assertEqual(len(ep.plan_fahrzeuge), 1)
         self.assertEqual(ep.plan_fahrzeuge[0].ziel_status, "bereitschaft")
         db.close()
+
+class TestEinstellungen(BaseTestCase):
+    """Tests für /admin/einstellungen (Einstellungen speichern und lesen)."""
+
+    def test_einstellungen_standardwerte(self):
+        """Einsatz-API liefert Standardwerte wenn keine Einstellungen gesetzt."""
+        r = self.client.get("/api/einsatz")
+        data = r.json()
+        self.assertEqual(data["einsatz_unterteilungen"], 1)
+        self.assertEqual(data["einsatz_darstellung"], "vertikal")
+
+    def test_einstellungen_speichern(self):
+        """Einstellungen werden korrekt gespeichert."""
+        r = self.client.post("/admin/einstellungen", data={
+            "einsatz_unterteilungen": "3",
+            "einsatz_darstellung": "horizontal",
+            "alarm_unterteilungen": "2",
+            "alarm_darstellung": "horizontal",
+        })
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["ok"])
+
+    def test_einstellungen_gespeicherter_wert_wird_gelesen(self):
+        """Nach dem Speichern liefert die Einsatz-API den neuen Wert."""
+        self.client.post("/admin/einstellungen", data={
+            "einsatz_unterteilungen": "4",
+            "einsatz_darstellung": "horizontal",
+            "alarm_unterteilungen": "1",
+            "alarm_darstellung": "vertikal",
+        })
+        r = self.client.get("/api/einsatz")
+        data = r.json()
+        self.assertEqual(data["einsatz_unterteilungen"], 4)
+        self.assertEqual(data["einsatz_darstellung"], "horizontal")
+
+    def test_einstellungen_ungueltige_unterteilungen_abgelehnt(self):
+        """Unterteilungen außerhalb 1-5 werden abgelehnt."""
+        r = self.client.post("/admin/einstellungen", data={
+            "einsatz_unterteilungen": "6",
+            "einsatz_darstellung": "vertikal",
+            "alarm_unterteilungen": "1",
+            "alarm_darstellung": "vertikal",
+        })
+        self.assertEqual(r.status_code, 400)
+
+    def test_einstellungen_ungueltige_alarm_unterteilungen_abgelehnt(self):
+        """Alarm-Unterteilungen außerhalb 1-5 werden abgelehnt."""
+        r = self.client.post("/admin/einstellungen", data={
+            "einsatz_unterteilungen": "1",
+            "einsatz_darstellung": "vertikal",
+            "alarm_unterteilungen": "0",
+            "alarm_darstellung": "vertikal",
+        })
+        self.assertEqual(r.status_code, 400)

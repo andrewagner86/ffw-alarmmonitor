@@ -118,6 +118,7 @@
     <a href="/admin/alarmierungstyp" class="tab-btn {% if tab == 'alarmierungstypen' %}active{% endif %}">⚡ Alarmierungstypen</a>
     <a href="/admin/alarmierungsplan" class="tab-btn {% if tab == 'alarmierungsplaene' %}active{% endif %}">📋 Alarmierungspläne</a>
     <a href="/admin/datenverwaltung" class="tab-btn {% if tab == 'datenverwaltung' %}active{% endif %}">🗄️ Datenverwaltung</a>
+    <a href="/admin/einstellungen" class="tab-btn {% if tab == 'einstellungen' %}active{% endif %}">⚙️ Einstellungen</a>
   </div>
 
 
@@ -130,7 +131,7 @@
         <span id="fahrzeug-form-title">Fahrzeug anlegen</span>
       </div>
       <div class="card-body">
-        <form id="fahrzeug-form" method="post" action="/admin/fahrzeug" onsubmit="return restSubmit(event, 'fahrzeug-form', '/admin/fahrzeug')">
+        <form id="fahrzeug-form" method="post" autocomplete="off" action="/admin/fahrzeug" onsubmit="return restSubmit(event, 'fahrzeug-form', '/admin/fahrzeug')">
           <div class="form-row">
             <div>
               <label>Fahrzeugname</label>
@@ -246,7 +247,7 @@
         <span id="gruppe-form-title">Fahrzeuggruppe anlegen</span>
       </div>
       <div class="card-body">
-        <form id="gruppe-form" method="post" action="/admin/gruppe" onsubmit="return restSubmit(event, 'gruppe-form', '/admin/gruppe')">
+        <form id="gruppe-form" method="post" autocomplete="off" action="/admin/gruppe" onsubmit="return restSubmit(event, 'gruppe-form', '/admin/gruppe')">
           <label>Fahrzeuggruppenname</label>
           <input type="text" id="g-name" name="name" placeholder="z.B. Löschzug, Hilfeleistung" required>
           <div class="form-error" style="display:none;padding:0.5rem 0.75rem;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#F87171;font-size:0.85rem;margin-bottom:0.5rem"></div>
@@ -314,7 +315,7 @@
         <span id="at-form-title">Alarmierungstyp anlegen</span>
       </div>
       <div class="card-body">
-        <form id="at-form" method="post" action="/admin/alarmierungstyp" onsubmit="return atFormSubmit(event)">
+        <form id="at-form" method="post" autocomplete="off" action="/admin/alarmierungstyp" onsubmit="return atFormSubmit(event)">
           <label>Name</label>
           <input type="text" id="at-name" name="name" placeholder="z.B. BRAND Gebäude" required>
           <label>Beschreibung (optional)</label>
@@ -390,7 +391,7 @@
         <span id="territorium-form-title">Territorium anlegen</span>
       </div>
       <div class="card-body">
-        <form id="territorium-form" method="post" action="/admin/territorium" onsubmit="return restSubmit(event, 'territorium-form', '/admin/territorium')">
+        <form id="territorium-form" method="post" autocomplete="off" action="/admin/territorium" onsubmit="return restSubmit(event, 'territorium-form', '/admin/territorium')">
           <label>Name</label>
           <input type="text" id="t-name" name="name" placeholder="z.B. Ortschaft Nord" required>
           <label>Beschreibung (optional)</label>
@@ -455,7 +456,7 @@
         <span id="ep-form-title">Alarmierungsplan anlegen</span>
       </div>
       <div class="card-body">
-        <form id="ep-form" method="post" action="/admin/alarmierungsplan" onsubmit="return epFormSubmit(event)">
+        <form id="ep-form" method="post" autocomplete="off" action="/admin/alarmierungsplan" onsubmit="return epFormSubmit(event)">
 
           <label>Alarmierungstyp</label>
           <select id="ep-alarmierungstyp" name="alarmierungstyp_id" required onchange="loadStichworte(this.value)">
@@ -586,7 +587,7 @@
           Importiert eine zuvor exportierte JSON-Datei. Bestehende Daten bleiben erhalten –
           es werden nur neue Einträge hinzugefügt.
         </p>
-        <form id="import-form" onsubmit="return importSubmit(event)">
+        <form id="import-form" autocomplete="off" onsubmit="return importSubmit(event)">
           <input type="file" id="import-file" accept=".json" style="display:none">
           <div onclick="document.getElementById('import-file').click()" id="import-file-label"
                style="display:flex;align-items:center;gap:0.75rem;padding:0.55rem 0.85rem;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--muted);font-size:0.9rem;cursor:pointer;margin-bottom:0.75rem;transition:border-color 0.15s">
@@ -617,9 +618,104 @@
   </div>
   {% endif %}
 
+  <!-- ══════════ TAB: EINSTELLUNGEN ══════════ -->
+  {% if tab == 'einstellungen' %}
+  <div class="section">
+    <h2>Einstellungen</h2>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:1.5rem;max-width:900px;">
+
+    <div class="form-block" id="form-einstellungen">
+      <h3 style="margin:0 0 1rem 0;font-size:1rem;">Alarmübersicht</h3>
+
+      <label>Fahrzeuggruppendarstellung</label>
+      <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;">
+        <button type="button" data-wert="vertikal" id="alarm-darstellung-btn-vertikal"
+          class="btn{% if alarm_darstellung == 'vertikal' %} btn-primary{% endif %}"
+          style="flex:1;" onclick="alarmEinstellungDarstellungWaehlen('vertikal')">
+          ↕ Vertikal
+        </button>
+        <button type="button" data-wert="horizontal" id="alarm-darstellung-btn-horizontal"
+          class="btn{% if alarm_darstellung == 'horizontal' %} btn-primary{% endif %}"
+          style="flex:1;" onclick="alarmEinstellungDarstellungWaehlen('horizontal')">
+          ↔ Horizontal
+        </button>
+      </div>
+      <input type="hidden" id="einstellung-alarm-darstellung" value="{{ alarm_darstellung }}">
+
+      <label>Unterteilungen</label>
+      <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;">
+        {% for n in range(1, 6) %}
+        <button type="button"
+          data-spalten="{{ n }}"
+          id="alarm-spalten-btn-{{ n }}"
+          class="btn{% if alarm_unterteilungen == n %} btn-primary{% endif %}"
+          style="width:2.5rem;height:2.5rem;padding:0;font-size:1rem;font-weight:700;border-radius:6px;display:flex;align-items:center;justify-content:center;"
+          onclick="alarmEinstellungSpalteWaehlen(parseInt(this.dataset.spalten))">
+          {{ n }}
+        </button>
+        {% endfor %}
+      </div>
+      <input type="hidden" id="einstellung-alarm-spalten" value="{{ alarm_unterteilungen }}">
+    </div>
+
+    <div>
+      <h3 style="margin:0 0 1rem 0;font-size:1rem;">Einsatzübersicht</h3>
+
+      <label>Fahrzeuggruppendarstellung</label>
+      <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;">
+        <button type="button" data-wert="vertikal" id="darstellung-btn-vertikal"
+          class="btn{% if einsatz_darstellung == 'vertikal' %} btn-primary{% endif %}"
+          style="flex:1;" onclick="einstellungDarstellungWaehlen('vertikal')">
+          ↕ Vertikal
+        </button>
+        <button type="button" data-wert="horizontal" id="darstellung-btn-horizontal"
+          class="btn{% if einsatz_darstellung == 'horizontal' %} btn-primary{% endif %}"
+          style="flex:1;" onclick="einstellungDarstellungWaehlen('horizontal')">
+          ↔ Horizontal
+        </button>
+      </div>
+      <input type="hidden" id="einstellung-einsatz-darstellung" value="{{ einsatz_darstellung }}">
+
+      <label>Unterteilungen</label>
+      <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;">
+        {% for n in range(1, 6) %}
+        <button type="button"
+          data-spalten="{{ n }}"
+          id="spalten-btn-{{ n }}"
+          class="btn{% if einsatz_unterteilungen == n %} btn-primary{% endif %}"
+          style="width:2.5rem;height:2.5rem;padding:0;font-size:1rem;font-weight:700;border-radius:6px;display:flex;align-items:center;justify-content:center;"
+          onclick="einstellungSpalteWaehlen(parseInt(this.dataset.spalten))">
+          {{ n }}
+        </button>
+        {% endfor %}
+      </div>
+      <input type="hidden" id="einstellung-einsatz-spalten" value="{{ einsatz_unterteilungen }}">
+    </div>
+
+    </div>{# end grid #}
+
+    <div class="form-error" id="form-error-einstellungen" style="margin-top:1rem;max-width:480px;"></div>
+    <div style="margin-top:0.75rem;">
+      <button id="einstellungen-speichern-btn" class="btn btn-primary" onclick="einstellungenSpeichern()">Speichern</button>
+    </div>
+  </div>
+
+  {% endif %}
+
 </div>
 
 <script>
+// Firefox bfcache: Formulare beim Wiederherstellen aus dem Cache zurücksetzen
+window.addEventListener('pageshow', function(e) {
+  if (e.persisted) {
+    ['fahrzeug-form','gruppe-form','at-form','territorium-form','ep-form'].forEach(function(id) {
+      var f = document.getElementById(id);
+      if (f) f.reset();
+    });
+  }
+});
+
 document.addEventListener('DOMContentLoaded', function() {
 
   // ── Fahrzeuge ──────────────────────────────────────────────────────────────
@@ -834,7 +930,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  document.getElementById('ep-fahrzeuge').addEventListener('click', function(e) {
+  document.getElementById('ep-fahrzeuge')?.addEventListener('click', function(e) {
     const tag = e.target.closest('.ep-fzg-tag');
     if (!tag) return;
     const next = (parseInt(tag.dataset.state) + 1) % 3;
@@ -917,7 +1013,8 @@ window.moveGruppe = function(id, direction) {
 };
 
 // ── REST helpers ─────────────────────────────────────────────────────────────
-document.getElementById('import-file').addEventListener('change', function() {
+const importFileEl = document.getElementById('import-file');
+if (importFileEl) importFileEl.addEventListener('change', function() {
   const name = this.files[0] ? this.files[0].name : 'Datei auswählen…';
   document.getElementById('import-file-name').textContent = name;
   const label = document.getElementById('import-file-label');
@@ -1004,6 +1101,72 @@ function restSubmit(event, formId, baseUrl) {
     })
     .catch(() => showFormError(formId, 'Netzwerkfehler – bitte erneut versuchen.'));
   return false;
+}
+
+// ── Einstellungen ──────────────────────────────────────────────────────────────
+function einstellungDarstellungWaehlen(wert) {
+  document.getElementById('einstellung-einsatz-darstellung').value = wert;
+  ['vertikal', 'horizontal'].forEach(w => {
+    const btn = document.getElementById('darstellung-btn-' + w);
+    if (btn) btn.classList.toggle('btn-primary', w === wert);
+  });
+}
+
+function einstellungSpalteWaehlen(n) {
+  document.getElementById('einstellung-einsatz-spalten').value = n;
+  for (let i = 1; i <= 5; i++) {
+    const btn = document.getElementById('spalten-btn-' + i);
+    if (btn) btn.classList.toggle('btn-primary', i === n);
+  }
+}
+
+function alarmEinstellungDarstellungWaehlen(wert) {
+  document.getElementById('einstellung-alarm-darstellung').value = wert;
+  ['vertikal', 'horizontal'].forEach(w => {
+    const btn = document.getElementById('alarm-darstellung-btn-' + w);
+    if (btn) btn.classList.toggle('btn-primary', w === wert);
+  });
+}
+
+function alarmEinstellungSpalteWaehlen(n) {
+  document.getElementById('einstellung-alarm-spalten').value = n;
+  for (let i = 1; i <= 5; i++) {
+    const btn = document.getElementById('alarm-spalten-btn-' + i);
+    if (btn) btn.classList.toggle('btn-primary', i === n);
+  }
+}
+
+async function einstellungenSpeichern() {
+  const btn = document.getElementById('einstellungen-speichern-btn');
+  const errEl = document.getElementById('form-error-einstellungen');
+
+  btn.disabled = true;
+  errEl.style.display = 'none';
+  errEl.textContent = '';
+
+  try {
+    const fd = new FormData();
+    fd.append('einsatz_unterteilungen', document.getElementById('einstellung-einsatz-spalten').value);
+    fd.append('einsatz_darstellung',    document.getElementById('einstellung-einsatz-darstellung').value);
+    fd.append('alarm_unterteilungen',   document.getElementById('einstellung-alarm-spalten').value);
+    fd.append('alarm_darstellung',      document.getElementById('einstellung-alarm-darstellung').value);
+    const r = await fetch('/admin/einstellungen', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (data.ok) {
+      const orig = btn.textContent;
+      btn.textContent = '✓ Gespeichert';
+      btn.style.background = 'var(--green)';
+      setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 2000);
+    } else {
+      errEl.textContent = data.detail || 'Fehler beim Speichern';
+      errEl.style.display = 'block';
+    }
+  } catch(e) {
+    errEl.textContent = 'Netzwerkfehler – bitte erneut versuchen.';
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+  }
 }
 </script>
 </body>

@@ -118,6 +118,26 @@ class AktivAlarm(Base):
     aktiv              = Column(Boolean, default=True, nullable=False)
 
 
+class Einstellung(Base):
+    __tablename__ = "einstellungen"
+    schluessel = Column(String(100), primary_key=True)
+    wert       = Column(String(500), nullable=False)
+
+
+def get_einstellung(db: Session, schluessel: str, standard: str) -> str:
+    e = db.get(Einstellung, schluessel)
+    return e.wert if e else standard
+
+
+def set_einstellung(db: Session, schluessel: str, wert: str):
+    e = db.get(Einstellung, schluessel)
+    if e:
+        e.wert = wert
+    else:
+        db.add(Einstellung(schluessel=schluessel, wert=wert))
+    db.commit()
+
+
 # ─── Datenbank initialisieren ─────────────────────────────────────────────────
 
 Base.metadata.create_all(bind=engine)
@@ -176,23 +196,73 @@ def admin_context(db: Session, tab: str) -> dict:
         "territorien":       db.query(Territorium).order_by(Territorium.name).all(),
         "einsatzplaene":     db.query(Alarmierungsplan).order_by(Alarmierungsplan.alarmierungstyp_id, Alarmierungsplan.id).all(),
         "tab":               tab,
+        "einsatz_unterteilungen":   int(get_einstellung(db, "einsatz_unterteilungen", "1")),
+        "einsatz_darstellung":       get_einstellung(db, "einsatz_darstellung", "vertikal"),
+        "alarm_unterteilungen":      int(get_einstellung(db, "alarm_unterteilungen", "1")),
+        "alarm_darstellung":         get_einstellung(db, "alarm_darstellung", "vertikal"),
     }
 
 
 # ─── Hauptansicht ─────────────────────────────────────────────────────────────
+
+
+import math as _math
+
+def _compute_gruppen_layout(gruppen_data: list, darstellung: str, unterteilungen: int) -> dict:
+    """
+    gruppen_data: list of dicts with gruppe_name, gruppe_id, fahrzeuge
+    Returns: {gruppen: [..., col, row], max_cols, max_rows, gt_rows}
+    """
+    n = len(gruppen_data)
+    if n == 0:
+        return {"gruppen_layout": [], "layout_max_cols": 1, "layout_max_rows": 0, "layout_gt_rows": ""}
+    if darstellung == "vertikal":
+        cols = unterteilungen
+        rows = _math.ceil(n / cols)
+        for i, g in enumerate(gruppen_data):
+            g["col"] = i % cols + 1
+            g["row"] = i // cols + 1
+    else:  # horizontal
+        rows = unterteilungen
+        cols = _math.ceil(n / rows)
+        for i, g in enumerate(gruppen_data):
+            g["col"] = i // rows + 1
+            g["row"] = i % rows + 1
+    gt_rows = " ".join(["auto 1fr"] * rows)
+    return {
+        "gruppen_layout": gruppen_data,
+        "layout_max_cols": cols,
+        "layout_max_rows": rows,
+        "layout_gt_rows": gt_rows,
+    }
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request, db: Session = Depends(get_db)):
     alarm = aktiver_alarm(db)
     if alarm and alarm.alarmierungstyp_id:
         return RedirectResponse(f"/alarm/{alarm.alarmierungstyp_id}", status_code=302)
+    _darst = get_einstellung(db, "alarm_darstellung", "vertikal")
+    _unt   = int(get_einstellung(db, "alarm_unterteilungen", "1"))
+    _alle  = fahrzeuge_sortiert(db)
+    _grp   = gruppen_sortiert(db)
+    _gdata = [{"gruppe_name": g.name, "gruppe_id": g.id,
+               "fahrzeuge": [f for f in _alle if f.gruppe_id == g.id]}
+              for g in _grp]
+    _gdata = [g for g in _gdata if g["fahrzeuge"]]
+    _ohne  = [f for f in _alle if not f.gruppe_id]
+    if _ohne:
+        _gdata.append({"gruppe_name": None, "gruppe_id": None, "fahrzeuge": _ohne})
+    _layout = _compute_gruppen_layout(_gdata, _darst, _unt)
     return templates.TemplateResponse("index.html", {
         "request":                      request,
         "alarmierungstypen":            db.query(Alarmierungstyp).order_by(Alarmierungstyp.name).all(),
-        "alle_fahrzeuge":               fahrzeuge_sortiert(db),
-        "gruppen":                      gruppen_sortiert(db),
+        "alle_fahrzeuge":               _alle,
+        "gruppen":                      _grp,
         "aktiver_alarm":                alarm,
         "warnungen":                    [],
+        "alarm_darstellung":            _darst,
+        "alarm_unterteilungen":         _unt,
+        **_layout,
     })
 
 
@@ -208,14 +278,29 @@ def alarm_view(alarmierungstyp_id: int, request: Request, db: Session = Depends(
     if alarm.alarmierungstyp_id != alarmierungstyp_id:
         return RedirectResponse(f"/alarm/{alarm.alarmierungstyp_id}", status_code=302)
 
+    _darst = get_einstellung(db, "alarm_darstellung", "vertikal")
+    _unt   = int(get_einstellung(db, "alarm_unterteilungen", "1"))
+    _alle  = fahrzeuge_sortiert(db)
+    _grp   = gruppen_sortiert(db)
+    _gdata = [{"gruppe_name": g.name, "gruppe_id": g.id,
+               "fahrzeuge": [f for f in _alle if f.gruppe_id == g.id]}
+              for g in _grp]
+    _gdata = [g for g in _gdata if g["fahrzeuge"]]
+    _ohne  = [f for f in _alle if not f.gruppe_id]
+    if _ohne:
+        _gdata.append({"gruppe_name": None, "gruppe_id": None, "fahrzeuge": _ohne})
+    _layout = _compute_gruppen_layout(_gdata, _darst, _unt)
     return templates.TemplateResponse("index.html", {
         "request":                 request,
         "alarmierungstypen":       db.query(Alarmierungstyp).order_by(Alarmierungstyp.name).all(),
-        "alle_fahrzeuge":          fahrzeuge_sortiert(db),
-        "gruppen":                 gruppen_sortiert(db),
+        "alle_fahrzeuge":          _alle,
+        "gruppen":                 _grp,
         "aktiver_alarmierungstyp": alarmierungstyp,
         "aktiver_alarm":           alarm,
         "warnungen":               json.loads(alarm.warnungen_json) if alarm and alarm.warnungen_json else [],
+        "alarm_darstellung":       _darst,
+        "alarm_unterteilungen":    _unt,
+        **_layout,
     })
 
 
@@ -407,8 +492,10 @@ def einsatz(request: Request):
 @app.get("/api/einsatz", response_class=JSONResponse)
 def einsatz_api(db: Session = Depends(get_db)):
     alarm = aktiver_alarm(db)
+    einsatz_unterteilungen = int(get_einstellung(db, "einsatz_unterteilungen", "1"))
+    einsatz_darstellung    = get_einstellung(db, "einsatz_darstellung", "vertikal")
     if not alarm:
-        return {"alarm": None}
+        return {"alarm": None, "einsatz_unterteilungen": einsatz_unterteilungen, "einsatz_darstellung": einsatz_darstellung}
 
     alle_fzg    = fahrzeuge_sortiert(db)
     einsatz_fzg = [f for f in alle_fzg if f.status in ("alarmiert", "bereitschaft")]
@@ -431,9 +518,11 @@ def einsatz_api(db: Session = Depends(get_db)):
             "territorium":     alarm.territorium.name             if alarm.territorium     else None,
             "erstellt_am":     alarm.erstellt_am.strftime("%H:%M Uhr") if alarm.erstellt_am else None,
         },
-        "gruppen": gruppen_data,
-        "gesamt":  len(einsatz_fzg),
-        "warnungen": json.loads(alarm.warnungen_json) if alarm.warnungen_json else [],
+        "gruppen":        gruppen_data,
+        "gesamt":         len(einsatz_fzg),
+        "warnungen":      json.loads(alarm.warnungen_json) if alarm.warnungen_json else [],
+        "einsatz_unterteilungen": einsatz_unterteilungen,
+        "einsatz_darstellung":    einsatz_darstellung,
     }
 
 
@@ -505,6 +594,30 @@ def gruppe_move(gid: int, direction: str = "up", db: Session = Depends(get_db)):
 @app.get("/admin/datenverwaltung", response_class=HTMLResponse)
 def admin_datenverwaltung(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("admin.html", {"request": request, **admin_context(db, "datenverwaltung")})
+
+
+@app.get("/admin/einstellungen", response_class=HTMLResponse)
+def admin_einstellungen(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse("admin.html", {"request": request, **admin_context(db, "einstellungen")})
+
+
+@app.post("/admin/einstellungen")
+def admin_einstellungen_speichern(
+    einsatz_unterteilungen: int = Form(1),
+    einsatz_darstellung: str = Form("vertikal"),
+    alarm_unterteilungen: int = Form(1),
+    alarm_darstellung: str = Form("vertikal"),
+    db: Session = Depends(get_db),
+):
+    if not 1 <= einsatz_unterteilungen <= 5:
+        raise HTTPException(status_code=400, detail="Unterteilungen muss zwischen 1 und 5 liegen")
+    if not 1 <= alarm_unterteilungen <= 5:
+        raise HTTPException(status_code=400, detail="Unterteilungen muss zwischen 1 und 5 liegen")
+    set_einstellung(db, "einsatz_unterteilungen", str(einsatz_unterteilungen))
+    set_einstellung(db, "einsatz_darstellung", einsatz_darstellung if einsatz_darstellung in ("vertikal", "horizontal") else "vertikal")
+    set_einstellung(db, "alarm_unterteilungen", str(alarm_unterteilungen))
+    set_einstellung(db, "alarm_darstellung", alarm_darstellung if alarm_darstellung in ("vertikal", "horizontal") else "vertikal")
+    return {"ok": True}
 
 
 @app.get("/admin/datenverwaltung/export")

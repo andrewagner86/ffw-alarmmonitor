@@ -62,11 +62,11 @@
 
   /* Legende */
 .gruppe-section { margin-bottom: 1rem; }
-  .gruppe-header { display: flex; align-items: center; gap: 10px; margin-bottom: 0.65rem; padding-bottom: 0.45rem; border-bottom: 1px solid var(--border); }
+  .gruppe-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 0.65rem; padding-bottom: 0.45rem; border-bottom: 1px solid var(--border); }
   .gruppe-label { font-family: 'Barlow Condensed', sans-serif; font-size: 1rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #FCD34D; }
   .gruppe-count { font-size: 0.72rem; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); border-radius: 99px; padding: 2px 7px; }
 
-  .fahrzeug-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.6rem; }
+  .fahrzeug-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.6rem; align-items: stretch; }
 
   /* Fahrzeugkarte */
   .fahrzeug-card {
@@ -76,6 +76,8 @@
     position: relative; overflow: hidden;
     transition: transform 0.12s, box-shadow 0.12s, border-color 0.15s, background 0.15s;
     cursor: pointer; user-select: none;
+    min-height: 7.5rem;
+    display: flex; flex-direction: column;
   }
   .fahrzeug-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c-einsatzbereit); transition: background 0.15s; }
 
@@ -103,7 +105,7 @@
   .fahrzeug-meta { font-size: 0.75rem; color: var(--muted); margin-bottom: 0.35rem; }
   .fahrzeug-funkkennung { font-size: 0.72rem; color: #93C5FD; font-weight: 600; margin-bottom: 0.45rem; }
 
-  .status-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; }
+  .status-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; margin-top: auto; align-self: flex-start; }
   .sl-einsatzbereit { color: #9CA3AF; background: rgba(75,85,99,0.2); border: 1px solid rgba(75,85,99,0.4); }
   .sl-alarmiert { color: var(--green); background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); }
   .sl-bereitschaft { color: var(--yellow); background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.3); }
@@ -232,37 +234,51 @@
       <span style="color:#FF6B60">● Nicht einsatzbereit: <strong id="cnt-nicht">{{ alle_fahrzeuge|selectattr("status","equalto","nicht_einsatzbereit")|list|length }}</strong></span>
     </div>
 
-    {% set ns = namespace(ohne_gruppe=[]) %}
-    {% for f in alle_fahrzeuge %}{% if not f.gruppe_id %}{% set ns.ohne_gruppe = ns.ohne_gruppe + [f] %}{% endif %}{% endfor %}
-
-    {% for gruppe in gruppen %}
-      {% set gf = alle_fahrzeuge | selectattr("gruppe_id", "equalto", gruppe.id) | list %}
-      {% if gf %}
-      <div class="gruppe-section">
-        <div class="gruppe-header">
-          <span class="gruppe-label">📂 {{ gruppe.name }}</span>
-          <span class="gruppe-count">{{ gf|length }}</span>
-        </div>
-        <div class="fahrzeug-grid" data-gruppe="{{ gruppe.id }}">
-          {% for f in gf %}{{ fahrzeug_card(f, alarmierungstyp_fahrzeug_ids) }}{% endfor %}
-        </div>
-      </div>
-      {% endif %}
-    {% endfor %}
-
-    {% if ns.ohne_gruppe %}
-    <div class="gruppe-section">
-      {% if gruppen %}
-      <div class="gruppe-header">
+    {%- if gruppen_layout %}
+    <div id="gruppen-grid"
+         data-cols="{{ layout_max_cols }}"
+         data-gt-rows="{{ layout_gt_rows }}"
+         style="column-gap:1.5rem;row-gap:0;">
+      {%- for g in gruppen_layout %}
+      {%- set header_row = g.row * 2 - 1 %}
+      {%- set content_row = g.row * 2 %}
+      <div class="gruppe-header"
+           data-grid-col="{{ g.col }}"
+           data-grid-row="{{ header_row }}"
+           style="margin-bottom:0.75rem;padding-bottom:0.5rem;border-bottom:1px solid var(--border);">
+        {%- if g.gruppe_name %}
+        <span class="gruppe-label">📂 {{ g.gruppe_name }}</span>
+        {%- else %}
         <span class="gruppe-label" style="color:var(--muted)">Ohne Fahrzeuggruppe</span>
-        <span class="gruppe-count">{{ ns.ohne_gruppe|length }}</span>
+        {%- endif %}
+        <span class="gruppe-count">{{ g.fahrzeuge|length }}</span>
       </div>
-      {% endif %}
-      <div class="fahrzeug-grid" data-gruppe="none">
-        {% for f in ns.ohne_gruppe %}{{ fahrzeug_card(f, alarmierungstyp_fahrzeug_ids) }}{% endfor %}
+      <div class="fahrzeug-grid"
+           data-grid-col="{{ g.col }}"
+           data-grid-row="{{ content_row }}"
+           data-gruppe="{{ g.gruppe_id or 'none' }}"
+           style="align-self:start;margin-bottom:1.5rem;">
+        {%- for f in g.fahrzeuge %}{{ fahrzeug_card(f, alarmierungstyp_fahrzeug_ids) }}{%- endfor %}
       </div>
+      {%- endfor %}
     </div>
-    {% endif %}
+    <script>
+    (function() {
+      var grid = document.getElementById('gruppen-grid');
+      if (!grid) return;
+      var cols = grid.dataset.cols;
+      var gtRows = grid.dataset.gtRows;
+      grid.style.display = 'grid';
+      grid.style.gridTemplateColumns = 'repeat(' + cols + ',1fr)';
+      grid.style.gridTemplateRows = gtRows;
+      grid.style.alignItems = 'stretch';
+      grid.querySelectorAll('[data-grid-col]').forEach(function(el) {
+        el.style.gridColumn = el.dataset.gridCol;
+        el.style.gridRow = el.dataset.gridRow;
+      });
+    })();
+    </script>
+    {%- endif %}
 
 
   </div>
@@ -337,7 +353,7 @@ function toggleSortMode() {
       sortables.push(Sortable.create(grid, {
         animation: 150, handle: '.drag-handle',
         ghostClass: 'sortable-ghost', chosenClass: 'sortable-chosen',
-        group: 'fahrzeuge',
+
         onEnd: () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveOrder, 400); }
       }));
     });

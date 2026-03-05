@@ -18,8 +18,9 @@ Webbasierte Alarmierungssoftware für Feuerwehren zur Verwaltung und Alarmierung
   - 🔴 **Nicht einsatzbereit** (rot)
 - Alarmierungstyp aus der Seitenleiste auswählen → Alarm wird ausgelöst
 - Ist ein Alarm aktiv, sind andere Alarmierungstypen gesperrt
-- Drag & Drop Reihenfolge der Fahrzeuge anpassen (Button „⠿ Reihenfolge")
+- **Drag & Drop** Reihenfolge der Fahrzeuge anpassen (Button „⠿ Reihenfolge") — nur innerhalb der Fahrzeuggruppe
 - Warnhinweise bei nicht verfügbaren Fahrzeugen ohne verfügbares Ersatzfahrzeug
+- **Konfigurierbare Darstellung** der Fahrzeuggruppen (siehe Einstellungen)
 
 #### Alarmauslösung mit Alarmierungsplänen
 - **Kein Alarmierungsplan hinterlegt** → Alarm wird direkt ausgelöst
@@ -39,7 +40,13 @@ Webbasierte Alarmierungssoftware für Feuerwehren zur Verwaltung und Alarmierung
 - Zeigt nur Fahrzeuge mit Status **Alarmiert** oder **Bereitschaft**
 - Gruppierung nach Fahrzeuggruppen
 - Warnhinweise für nicht verfügbare Fahrzeuge
-- Aktualisiert sich automatisch **alle 5 Sekunden**
+- Aktualisiert sich automatisch via **Server-Sent Events** (kein Polling)
+- **Konfigurierbare Darstellung** der Fahrzeuggruppen (siehe Einstellungen)
+
+### Echtzeit-Updates (Server-Sent Events)
+- Alarmübersicht und Einsatzübersicht werden sofort aktualisiert wenn sich der Alarmstatus oder ein Fahrzeugstatus ändert
+- Keep-Alive alle 25 Sekunden, automatische Wiederverbindung nach Verbindungsabbruch
+- Lokale DOM-Änderungen (eigener Client) werden nicht doppelt neu geladen
 
 ### Ersatzfahrzeuge
 - Jedem Fahrzeug können ein oder mehrere Ersatzfahrzeuge zugeordnet werden
@@ -82,6 +89,28 @@ Startet direkt auf der **Alarmierungspläne**-Übersicht. Fehlermeldungen aus de
 - **Import**: Zuvor exportierte JSON-Datei einlesen; bestehende Daten bleiben erhalten, nur neue Einträge werden hinzugefügt
 - **Zurücksetzen**: Alle erfassten Daten nach doppelter Sicherheitsabfrage löschen
 
+**Einstellungen** (`/admin/einstellungen`)
+- Darstellung der Fahrzeuggruppen separat für Alarmübersicht und Einsatzübersicht konfigurierbar
+- **Fahrzeuggruppendarstellung**: `↕ Vertikal` (Gruppen übereinander) oder `↔ Horizontal` (Gruppen nebeneinander)
+- **Unterteilungen** (1–5): Bei vertikaler Darstellung die Anzahl der Spalten, bei horizontaler Darstellung die Anzahl der Zeilen
+- Einstellungen für Alarmübersicht und Einsatzübersicht sind unabhängig voneinander
+
+---
+
+## Darstellungsmodi
+
+### Vertikal (Standard)
+Fahrzeuggruppen werden in Spalten untereinander angeordnet. Die Anzahl der Spalten wird über **Unterteilungen** gesteuert. Gruppen werden spaltenweise verteilt.
+
+Beispiel: 6 Gruppen, 2 Unterteilungen → je 3 Gruppen pro Spalte nebeneinander.
+
+### Horizontal
+Fahrzeuggruppen werden in Zeilen nebeneinander angeordnet. Die Anzahl der Zeilen wird über **Unterteilungen** gesteuert.
+
+Beispiel: 6 Gruppen, 2 Unterteilungen → 2 Zeilen mit je 3 Gruppen nebeneinander.
+
+In beiden Modi sind nebeneinander liegende Gruppen-Header immer gleich hoch; übereinanderliegende Gruppen haben stets dieselbe Breite. Fahrzeugkarten innerhalb einer Gruppe sind ebenfalls einheitlich hoch — auch wenn Kennzeichen oder Funkkennung fehlen.
+
 ---
 
 ## Datenmodell
@@ -119,6 +148,11 @@ alarmierungsplan_fahrzeuge   ← M:N Alarmierungsplan ↔ Fahrzeug
 aktiv_alarme
   id, alarmierungstyp_id, stichwort_id, territorium_id
   warnungen_json, erstellt_am, aktiv
+
+einstellungen
+  schluessel (PK), wert
+  Schlüssel: einsatz_darstellung, einsatz_unterteilungen,
+             alarm_darstellung,   alarm_unterteilungen
 ```
 
 ---
@@ -130,8 +164,10 @@ Alle Ressourcen werden über einheitliche Singular-URLs verwaltet.
 | Methode | URL | Beschreibung |
 |---|---|---|
 | `GET` | `/` | Alarmübersicht |
+| `GET` | `/alarm/{typ_id}` | Alarmübersicht mit aktivem Alarm |
 | `GET` | `/einsatz` | Live-Einsatzübersicht |
 | `GET` | `/api/einsatz` | Einsatzdaten als JSON |
+| `GET` | `/api/einsatz/stream` | Server-Sent Events Stream |
 | `GET` | `/api/alarmierungstyp/{id}/einsatzplaene` | Alarmierungspläne mit Fahrzeugvorschau |
 | `GET` | `/api/alarmierungstyp/{id}/stichworte` | Stichworte eines Alarmierungstyps |
 | `POST` | `/api/alarm/starten` | Alarm auslösen (JSON-Body) |
@@ -164,6 +200,8 @@ Alle Ressourcen werden über einheitliche Singular-URLs verwaltet.
 | `GET` | `/admin/datenverwaltung/export` | Datenexport als JSON-Datei |
 | `POST` | `/admin/datenverwaltung/import` | Datenimport aus JSON-Datei |
 | `POST` | `/admin/datenverwaltung/reset` | Alle Daten löschen |
+| `GET` | `/admin/einstellungen` | Einstellungen-Ansicht |
+| `POST` | `/admin/einstellungen` | Einstellungen speichern |
 
 Alle schreibenden Endpunkte geben `{"ok": true}` zurück. Fehler werden als HTTP-Statuscodes mit `{"detail": "..."}` signalisiert.
 
@@ -179,6 +217,7 @@ Alle schreibenden Endpunkte geben `{"ok": true}` zurück. Fehler werden als HTTP
 | Jinja2 | 3.1 |
 | PostgreSQL | 16 |
 | Uvicorn | 0.30 |
+| aiofiles | 23.2 |
 | SortableJS (CDN) | 1.15.2 |
 
 ---
@@ -247,7 +286,7 @@ Unit-Tests für alle API-Endpunkte befinden sich in `tests/test_api.py`. Sie ver
 ### Abhängigkeiten installieren
 
 ```bash
-pip install fastapi httpx sqlalchemy jinja2 python-multipart pytest pytest-cov
+pip install fastapi httpx sqlalchemy jinja2 python-multipart aiofiles pytest pytest-cov
 ```
 
 ### Tests ausführen
@@ -265,7 +304,7 @@ python -m unittest tests.test_api -v
 
 ### Testabdeckung
 
-62 Tests in 10 Testklassen:
+89 Tests in 15 Testklassen:
 
 | Testklasse | Beschreibung |
 |---|---|
@@ -277,8 +316,13 @@ python -m unittest tests.test_api -v
 | `TestAlarmAPI` | Alarm starten/beenden, Fahrzeugstatus, Warnungen, Persistenz |
 | `TestFahrzeugStatusToggle` | Statuszyklus mit und ohne aktiven Alarm |
 | `TestReihenfolgeAPI` | Fahrzeug-Reihenfolge speichern |
-| `TestEinsatzAPI` | Einsatzdaten-API, Gruppenstruktur, Warnungen |
+| `TestEinsatzAPI` | Einsatzdaten-API, Gruppenstruktur, Warnungen, Einstellungsfelder |
 | `TestErsatzfahrzeugLogik` | Kein Doppeleinsatz, Plan-Ausschluss, Sammelwarnung |
+| `TestZielStatus` | Bereitschaft-Status, gemischter Zielstatus, Ersatz erbt Status |
+| `TestStichwortReferenzschutz` | Referenzierte Stichworte bleiben erhalten, Umbenennung |
+| `TestDatenverwaltung` | Export, Import, Reset, Zielstatus im Export |
+| `TestFehlendeLuecken` | Gruppe move down, Bereitschaft-Reset, Plan-Fahrzeug-Kaskade |
+| `TestEinstellungen` | Standardwerte, Speichern, Lesen, Validierung |
 
 ---
 
@@ -294,9 +338,11 @@ ffw-alarmmonitor/
 ├── requirements.txt
 ├── README.md
 ├── tests/
-│   └── test_api.py             # Unit-Tests (62 Tests, SQLite in-memory)
+│   └── test_api.py             # Unit-Tests (89 Tests, SQLite in-memory)
 └── app/
     ├── main.py                 # FastAPI-App, Routen, Datenbankmodelle
+    ├── static/
+    │   └── favicon.svg         # App-Icon
     └── templates/
         ├── index.html          # Alarmübersicht
         ├── einsatz.html        # Live-Einsatzübersicht
