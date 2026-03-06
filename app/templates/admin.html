@@ -620,85 +620,83 @@
 
   <!-- ══════════ TAB: EINSTELLUNGEN ══════════ -->
   {% if tab == 'einstellungen' %}
-  <div class="section">
-    <h2>Einstellungen</h2>
+  <div class="admin-grid" style="grid-template-columns:1fr 1fr;align-items:start;">
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:1.5rem;max-width:900px;">
+    <div class="card">
+      <div class="card-header">Alarmübersicht</div>
+      <div class="card-body">
+        <label>Fahrzeuggruppendarstellung</label>
+        <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;">
+          <button type="button" data-wert="vertikal" id="alarm-darstellung-btn-vertikal"
+            class="btn{% if alarm_darstellung == 'vertikal' %} btn-primary{% endif %}"
+            style="flex:1;" onclick="alarmEinstellungDarstellungWaehlen('vertikal')">
+            ↕ Vertikal
+          </button>
+          <button type="button" data-wert="horizontal" id="alarm-darstellung-btn-horizontal"
+            class="btn{% if alarm_darstellung == 'horizontal' %} btn-primary{% endif %}"
+            style="flex:1;" onclick="alarmEinstellungDarstellungWaehlen('horizontal')">
+            ↔ Horizontal
+          </button>
+        </div>
+        <input type="hidden" id="einstellung-alarm-darstellung" value="{{ alarm_darstellung }}">
 
-    <div class="form-block" id="form-einstellungen">
-      <h3 style="margin:0 0 1rem 0;font-size:1rem;">Alarmübersicht</h3>
-
-      <label>Fahrzeuggruppendarstellung</label>
-      <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;">
-        <button type="button" data-wert="vertikal" id="alarm-darstellung-btn-vertikal"
-          class="btn{% if alarm_darstellung == 'vertikal' %} btn-primary{% endif %}"
-          style="flex:1;" onclick="alarmEinstellungDarstellungWaehlen('vertikal')">
-          ↕ Vertikal
-        </button>
-        <button type="button" data-wert="horizontal" id="alarm-darstellung-btn-horizontal"
-          class="btn{% if alarm_darstellung == 'horizontal' %} btn-primary{% endif %}"
-          style="flex:1;" onclick="alarmEinstellungDarstellungWaehlen('horizontal')">
-          ↔ Horizontal
-        </button>
+        <label>Unterteilungen</label>
+        <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;">
+          {% for n in range(1, 6) %}
+          <button type="button"
+            data-spalten="{{ n }}"
+            id="alarm-spalten-btn-{{ n }}"
+            class="btn{% if alarm_unterteilungen == n %} btn-primary{% endif %}"
+            style="width:2.5rem;height:2.5rem;padding:0;font-size:1rem;font-weight:700;border-radius:6px;display:flex;align-items:center;justify-content:center;"
+            onclick="alarmEinstellungSpalteWaehlen(parseInt(this.dataset.spalten))">
+            {{ n }}
+          </button>
+          {% endfor %}
+        </div>
+        <input type="hidden" id="einstellung-alarm-spalten" value="{{ alarm_unterteilungen }}">
       </div>
-      <input type="hidden" id="einstellung-alarm-darstellung" value="{{ alarm_darstellung }}">
-
-      <label>Unterteilungen</label>
-      <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;">
-        {% for n in range(1, 6) %}
-        <button type="button"
-          data-spalten="{{ n }}"
-          id="alarm-spalten-btn-{{ n }}"
-          class="btn{% if alarm_unterteilungen == n %} btn-primary{% endif %}"
-          style="width:2.5rem;height:2.5rem;padding:0;font-size:1rem;font-weight:700;border-radius:6px;display:flex;align-items:center;justify-content:center;"
-          onclick="alarmEinstellungSpalteWaehlen(parseInt(this.dataset.spalten))">
-          {{ n }}
-        </button>
-        {% endfor %}
-      </div>
-      <input type="hidden" id="einstellung-alarm-spalten" value="{{ alarm_unterteilungen }}">
     </div>
 
-    <div>
-      <h3 style="margin:0 0 1rem 0;font-size:1rem;">Einsatzübersicht</h3>
+    <div class="card">
+      <div class="card-header">Einsatzübersicht</div>
+      <div class="card-body">
+        <label>Fahrzeuggruppendarstellung</label>
+        <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;">
+          <button type="button" data-wert="vertikal" id="darstellung-btn-vertikal"
+            class="btn{% if einsatz_darstellung == 'vertikal' %} btn-primary{% endif %}"
+            style="flex:1;" onclick="einstellungDarstellungWaehlen('vertikal')">
+            ↕ Vertikal
+          </button>
+          <button type="button" data-wert="horizontal" id="darstellung-btn-horizontal"
+            class="btn{% if einsatz_darstellung == 'horizontal' %} btn-primary{% endif %}"
+            style="flex:1;" onclick="einstellungDarstellungWaehlen('horizontal')">
+            ↔ Horizontal
+          </button>
+        </div>
+        <input type="hidden" id="einstellung-einsatz-darstellung" value="{{ einsatz_darstellung }}">
 
-      <label>Fahrzeuggruppendarstellung</label>
-      <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;">
-        <button type="button" data-wert="vertikal" id="darstellung-btn-vertikal"
-          class="btn{% if einsatz_darstellung == 'vertikal' %} btn-primary{% endif %}"
-          style="flex:1;" onclick="einstellungDarstellungWaehlen('vertikal')">
-          ↕ Vertikal
-        </button>
-        <button type="button" data-wert="horizontal" id="darstellung-btn-horizontal"
-          class="btn{% if einsatz_darstellung == 'horizontal' %} btn-primary{% endif %}"
-          style="flex:1;" onclick="einstellungDarstellungWaehlen('horizontal')">
-          ↔ Horizontal
-        </button>
+        <label>Unterteilungen</label>
+        <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;">
+          {% for n in range(1, 6) %}
+          <button type="button"
+            data-spalten="{{ n }}"
+            id="spalten-btn-{{ n }}"
+            class="btn{% if einsatz_unterteilungen == n %} btn-primary{% endif %}"
+            style="width:2.5rem;height:2.5rem;padding:0;font-size:1rem;font-weight:700;border-radius:6px;display:flex;align-items:center;justify-content:center;"
+            onclick="einstellungSpalteWaehlen(parseInt(this.dataset.spalten))">
+            {{ n }}
+          </button>
+          {% endfor %}
+        </div>
+        <input type="hidden" id="einstellung-einsatz-spalten" value="{{ einsatz_unterteilungen }}">
       </div>
-      <input type="hidden" id="einstellung-einsatz-darstellung" value="{{ einsatz_darstellung }}">
-
-      <label>Unterteilungen</label>
-      <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;">
-        {% for n in range(1, 6) %}
-        <button type="button"
-          data-spalten="{{ n }}"
-          id="spalten-btn-{{ n }}"
-          class="btn{% if einsatz_unterteilungen == n %} btn-primary{% endif %}"
-          style="width:2.5rem;height:2.5rem;padding:0;font-size:1rem;font-weight:700;border-radius:6px;display:flex;align-items:center;justify-content:center;"
-          onclick="einstellungSpalteWaehlen(parseInt(this.dataset.spalten))">
-          {{ n }}
-        </button>
-        {% endfor %}
-      </div>
-      <input type="hidden" id="einstellung-einsatz-spalten" value="{{ einsatz_unterteilungen }}">
     </div>
 
-    </div>{# end grid #}
+  </div>
 
-    <div class="form-error" id="form-error-einstellungen" style="margin-top:1rem;max-width:480px;"></div>
-    <div style="margin-top:0.75rem;">
-      <button id="einstellungen-speichern-btn" class="btn btn-primary" onclick="einstellungenSpeichern()">Speichern</button>
-    </div>
+  <div style="margin-top:1.5rem;">
+    <div class="form-error" id="form-error-einstellungen" style="margin-bottom:0.75rem;max-width:480px;"></div>
+    <button id="einstellungen-speichern-btn" class="btn btn-primary" onclick="einstellungenSpeichern()">Speichern</button>
   </div>
 
   {% endif %}
